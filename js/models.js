@@ -629,6 +629,48 @@ export function prewarm(nids, color = '#888888') {
   const run = (dl) => { while (jobs.length && dl.timeRemaining() > 3) { const [t, n] = jobs.shift(); baseGeometry(t, n); } if (jobs.length) idle(run); };
   idle(run);
 }
+// 멀리서 볼 때 쓰는 단순 모델 (삼각형 수 1/30 수준) — 실루엣 비율과 색은 원본과 같게
+const LOD = {
+  tank(S, turretW = 0.5) {
+    return mergeGeometries([
+      part(box(1.25, 0.2, 0.62), C.dark, M(0, 0.12, 0)),
+      part(box(1.2, 0.12, 0.6), S.base, M(0, 0.28, 0), CAMO),
+      part(box(0.62, 0.14, turretW), S.base, M(-0.08, 0.41, 0), CAMO),
+      part(cyl(0.03, 0.03, 0.85, 5), S.base, M(0.62, 0.42, 0, 0, 0, H)),
+      part(box(0.3, 0.01, 0.3), 0xffffff, M(-0.1, 0.485, 0), TINT),
+    ]);
+  },
+  inf(S) {
+    return mergeGeometries([
+      part(box(0.1, 0.42, 0.2), S.dark, M(0, 0.21, 0)),
+      part(box(0.18, 0.3, 0.26), S.base, M(0, 0.58, 0), CAMO),
+      part(sph(0.08, 6, 4), C.skin, M(0.01, 0.8, 0)),
+      part(sph(0.095, 6, 3, 0, PI * 2, 0, H), S.base, M(0, 0.82, 0)),
+      part(box(0.1, 0.02, 0.18), 0xffffff, M(-0.13, 0.74, 0), TINT),
+      part(box(0.42, 0.04, 0.04), C.gun, M(0.2, 0.58, 0.05)),
+    ]).scale(1.25, 1.25, 1.25);
+  },
+  arty(S) {
+    return mergeGeometries([
+      part(box(1.2, 0.26, 0.6), S.base, M(0, 0.17, 0), CAMO),
+      part(box(0.8, 0.3, 0.56), S.base, M(-0.2, 0.45, 0), CAMO),
+      part(cyl(0.035, 0.035, 1.1, 5), S.base, M(0.55, 0.78, 0, 0, 0, H - 0.55)),
+      part(box(0.3, 0.01, 0.34), 0xffffff, M(-0.3, 0.605, 0), TINT),
+    ]);
+  },
+};
+export function lodGeometry(type, nid) {
+  const { model, camo } = variantOf(type, nid);
+  const key = 'lod|' + model + '|' + camo;
+  if (!cache.has(key)) {
+    const S = SCHEMES[camo] || SCHEMES.kr;
+    const wide = { abrams: 0.62, leo2: 0.54, t90: 0.5, t62: 0.44, type10: 0.52 }[model] || 0.5;
+    const g = type === 'tank' ? LOD.tank(S, wide) : LOD[type](S);
+    if (S.pat !== 1) { const c = g.attributes.camo; for (let i = 0; i < c.count; i++) if (c.getX(i) > 0.5) c.setX(i, S.pat === 2 ? 2 : 0); }
+    cache.set(key, g);
+  }
+  return cache.get(key);
+}
 export function variantKey(type, nid) { const v = variantOf(type, nid); return v.model + '|' + v.camo; }
 
 export function makeUnit(type, nationColor, nid) {
@@ -638,8 +680,8 @@ export function makeUnit(type, nationColor, nid) {
 }
 
 // 대량 배치용 (인스턴스마다 국가색)
-export function makeInstanced(type, max, nid) {
-  const m = new THREE.InstancedMesh(baseGeometry(type, nid), unitMaterial, max);
+export function makeInstanced(type, max, nid, lod = false) {
+  const m = new THREE.InstancedMesh(lod ? lodGeometry(type, nid) : baseGeometry(type, nid), unitMaterial, max);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
   m.count = 0; m.castShadow = true; m.frustumCulled = false;

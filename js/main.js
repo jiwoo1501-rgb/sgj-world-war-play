@@ -171,7 +171,7 @@ function startGame(opts, saved) {
   for (const t of game.territories) if (t.owner !== t.home) placeOccFlag(t, game.nations.get(t.owner));
   prewarm([...game.nations.keys()]);
   warMap = new WarMap(scene, world, game, { tY, makeUnit, U, fx, sound, sfxAt });
-  garrisons = new Garrisons(scene, world, game, { tY, U, sharedSegs: (i, j) => warMap.sharedSegs(i, j) });
+  garrisons = new Garrisons(scene, world, game, { tY, U, citySize, sharedSegs: (i, j) => warMap.sharedSegs(i, j) });
   game.on('war', () => { warMap.dirty = true; garrisons.dirty = true; });
   game.on('peace', () => { warMap.dirty = true; garrisons.dirty = true; });
   game.on('capture', ({ from, to }) => { warMap.dirty = true; garrisons.dirty = true; warMap.markNames(from.id, to.id); });
@@ -230,10 +230,7 @@ function buildNationVis(n) {
   const s = citySize(t);
   const city = makeUnit('city', n.color, n.id); city.scale.setScalar(s); city.receiveShadow = true; g.add(city);
   const flag = makeFlag(n.color); flag.position.set(0, 1.0 * s, 0); flag.scale.setScalar(s * 1.2); g.add(flag);
-  const gar = new THREE.Group();
-  const tank = makeUnit('tank', n.color, n.id); tank.scale.setScalar(U); tank.position.set(0.9 * s + 0.3, 0, 0.3); tank.rotation.y = 0.6; gar.add(tank);
-  for (let i = 0; i < 3; i++) { const inf = makeUnit('inf', n.color, n.id); inf.scale.setScalar(U); inf.position.set(0.7 * s + 0.2 + i * 0.18, 0, 0.75 + (i % 2) * 0.12); inf.rotation.y = 0.6; gar.add(inf); }
-  g.add(gar);
+  const gar = null; // 수도 경비 병력은 garrison.js가 한꺼번에 그림
   const div = document.createElement('div');
   div.className = 'nlabel' + (n.isPlayer ? ' me' : '');
   div.innerHTML = `<span class="fl">${n.flag}</span><span class="nm">${n.name}</span><span class="pw"></span>`;
@@ -327,7 +324,7 @@ function removeExp(e) {
   expVis.delete(e.id);
 }
 const fadingArrows = [];
-window.__sgj = { expVis, get game() { return game; }, get warMap() { return warMap; }, get garrisons() { return garrisons; }, get minimap() { return minimap; }, map, sound }; // 디버그용
+window.__sgj = { expVis, get game() { return game; }, get warMap() { return warMap; }, get garrisons() { return garrisons; }, get minimap() { return minimap; }, map, sound, renderer, scene, camera, fx, nationVis }; // 디버그용
 function updateArrows(dt) {
   for (let i = fadingArrows.length - 1; i >= 0; i--) {
     const a = fadingArrows[i], u = a.material.uniforms;
@@ -550,7 +547,7 @@ addEventListener('keydown', (e) => {
 
 // ---------- 루프 ----------
 const clock = new THREE.Clock();
-let uiT = 0, labT = 0, musT = 0, labFrame = 0;
+let uiT = 0, labT = 0, musT = 0, labFrame = 0, shadowTick = 0;
 // 느린 기기 보호: 5초 평균이 25fps 아래면 그래픽 품질을 한 단계 낮춤 (한 번만)
 let perfAcc = 0, perfN = 0, perfDone = false;
 function watchPerf(rawDt) {
@@ -584,6 +581,10 @@ function frame(forceDt) {
   controls.target.z = THREE.MathUtils.clamp(controls.target.z, world.yN, world.yS);
   controls.update();
   const camD = camera.position.distanceTo(controls.target);
+  // 멀리서 볼 땐 그림자가 거의 안 보이므로 20프레임에 한 번만 갱신
+  const farShadow = camD > 45;
+  renderer.shadowMap.autoUpdate = !farShadow;
+  if (farShadow && (shadowTick = (shadowTick + 1) % 20) === 0) renderer.shadowMap.needsUpdate = true;
   // 그림자 영역을 화면 중심에 맞춤
   const sh = THREE.MathUtils.clamp(camD * 0.55, 8, 60);
   Object.assign(sun.shadow.camera, { left: -sh, right: sh, top: sh, bottom: -sh }); sun.shadow.camera.updateProjectionMatrix();
@@ -624,7 +625,7 @@ function updateLabels(camD) {
     const big = n.gdp * n.bal.eco;
     const show = n.isPlayer || camD < 45 || (camD < 90 && big > 250) || (camD < 70 && big > 60);
     v.lab.visible = show;
-    v.gar.scale.setScalar(THREE.MathUtils.clamp(0.6 + Math.log10(pw + 1) * 0.28, 0.6, 1.8));
+    v.g.visible = camD < 90 || n.isPlayer; // 멀리서는 도시 모형·국기 생략 (라벨만)
   }
 }
 

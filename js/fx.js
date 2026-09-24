@@ -7,7 +7,7 @@ export class FX {
     this.pos = new Float32Array(N * 3); this.col = new Float32Array(N * 4); this.size = new Float32Array(N);
     this.vel = new Float32Array(N * 3); this.life = new Float32Array(N); this.max = new Float32Array(N); this.kind = new Uint8Array(N);
     this.grow = new Float32Array(N);
-    this.i = 0;
+    this.i = 0; this.idle = 0; // idle: 마지막으로 파티클을 만든 뒤 지난 시간
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage));
     g.setAttribute('color', new THREE.BufferAttribute(this.col, 4).setUsage(THREE.DynamicDrawUsage));
@@ -72,6 +72,7 @@ export class FX {
   burn(x, y, z, dur = 8, s = 1) { this.burns.push({ x, y, z, t: dur, s }); if (this.burns.length > 40) this.burns.shift(); }
 
   emit(kind, x, y, z, vx, vy, vz, life, size, grow = 0) {
+    this.idle = 0;
     const i = this.i; this.i = (this.i + 1) % N;
     this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z;
     this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
@@ -104,6 +105,13 @@ export class FX {
   wake(x, z) { this.emit(4, x, 0.02, z, (Math.random() - 0.5) * 0.15, 0, (Math.random() - 0.5) * 0.15, 1.4, 0.15, 0.3); }
 
   update(dt) {
+    this.idle += dt;
+    // 파티클이 모두 사라진 뒤에는 6,000개 버퍼 계산·업로드를 건너뜀
+    const quiet = this.idle > 3.5 && !this.burns.length && !this.shells.length;
+    if (!quiet || !this.cleared) { this.cleared = quiet; this.updateParticles(dt); }
+    this.updateOthers(dt);
+  }
+  updateParticles(dt) {
     for (let i = 0; i < N; i++) {
       const l = this.life[i];
       const smoke = this.kind[i] === 2 || this.kind[i] === 4;
@@ -131,18 +139,20 @@ export class FX {
     for (let i = 0; i < N; i++) if (this.kind[i] === 1 || this.kind[i] === 3) this.col[i * 4 + 3] = 0;
     this.geo.attributes.position.needsUpdate = this.geo.attributes.color.needsUpdate = this.geo.attributes.size.needsUpdate = true;
     const f = this.fireGeo.attributes; f.position.needsUpdate = f.color.needsUpdate = f.size.needsUpdate = true;
+  }
+  updateOthers(dt) {
     for (const r of this.rings) {
       if (!r.m.visible) continue;
       r.t += dt; const k = r.t / r.max;
       if (k >= 1) { r.m.visible = false; continue; }
       r.m.scale.setScalar(0.2 + k * 3.2 * r.s); r.m.material.opacity = (1 - k) * 0.8;
     }
-    for (let i = 0; i < this.TR; i++) {
+    if (this.idle < 1) for (let i = 0; i < this.TR; i++) {
       const l = this.trLife[i] = Math.max(0, this.trLife[i] - dt);
       const b = l / 0.12;
       this.trCol[i * 6] = this.trCol[i * 6 + 3] = b; this.trCol[i * 6 + 1] = this.trCol[i * 6 + 4] = b * 0.85; this.trCol[i * 6 + 2] = this.trCol[i * 6 + 5] = b * 0.4;
     }
-    this.tracers.geometry.attributes.position.needsUpdate = this.tracers.geometry.attributes.color.needsUpdate = true;
+    if (this.idle < 1) this.tracers.geometry.attributes.position.needsUpdate = this.tracers.geometry.attributes.color.needsUpdate = true;
     this.shells = this.shells.filter((sh) => {
       sh.t += dt; const k = Math.min(1, sh.t / sh.dur);
       const x = sh.x1 + (sh.x2 - sh.x1) * k, z = sh.z1 + (sh.z2 - sh.z1) * k, y = sh.y1 + (sh.y2 - sh.y1) * k + Math.sin(Math.PI * k) * sh.h;

@@ -106,10 +106,12 @@ export class Garrisons {
     const tier = new Map();
     const U = this.deps.U;
     // 나라마다 실제 장비 모델이 다르므로, 모델별 InstancedMesh에 나눠 담는다
+    // 멀리서는 단순 모델·그림자 없음, 가까이서만 정밀 모델
+    const lod = camD > 22;
     const put = (type, x, z, y, yaw, n) => {
-      const key = type + ':' + variantKey(type, n.id);
+      const key = type + ':' + variantKey(type, n.id) + (lod ? ':lod' : '');
       let p = this.pools.get(key);
-      if (!p) { p = { m: makeInstanced(type, MAX[type], n.id), n: 0 }; this.scene.add(p.m); this.pools.set(key, p); }
+      if (!p) { p = { m: makeInstanced(type, MAX[type], n.id, lod), n: 0 }; p.m.castShadow = !lod; this.scene.add(p.m); this.pools.set(key, p); }
       if (p.n >= MAX[type]) return;
       this.q.setFromAxisAngle(this.up, yaw);
       this.m4.compose(this.v.set(x, y, z), this.q, this.s.setScalar(U));
@@ -143,6 +145,15 @@ export class Garrisons {
         const y = this.deps.tY(c.idx) + 0.01, tr = tierOf(n);
         put('tank', c.x + 0.45, c.z + 0.2, y, 0.4, n);
         for (let k = 0; k < 2 + tr; k++) put('inf', c.x - 0.35 + k * 0.17, c.z + 0.45, y, 0.9, n);
+      }
+      // 각 나라 수도 경비
+      for (const n of this.game.nations.values()) {
+        if (!n.alive) continue;
+        const t = this.game.territories[n.capital];
+        if (Math.abs(t.cx - target.x) > R || Math.abs(t.cy - target.z) > R) continue;
+        const y = this.deps.tY(t.idx) + 0.01, s = this.deps.citySize(t);
+        put('tank', t.cx + 0.9 * s + 0.3, t.cy + 0.3, y, 0.6, n);
+        for (let k = 0; k < 3; k++) put('inf', t.cx + 0.7 * s + 0.2 + k * 0.18, t.cy + 0.75 + (k % 2) * 0.12, y, 0.6, n);
       }
       // 점령지 수도에 정복국 부대
       for (const t of this.game.territories) {

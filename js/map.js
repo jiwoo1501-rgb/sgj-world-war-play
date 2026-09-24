@@ -12,7 +12,27 @@ export function project(lon, lat) {
   return [x, y];
 }
 
+// 미리 계산한 반복 가능한 잡음 질감 (픽셀마다 잡음 함수를 계산하던 것을 조회 한 번으로)
+function makeNoiseTex(n = 256) {
+  const hash = (x, y) => { const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return h - Math.floor(h); };
+  const vn = (x, y, per) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+    const h = (a, b) => hash(((a % per) + per) % per, ((b % per) + per) % per);
+    return (h(xi, yi) * (1 - u) + h(xi + 1, yi) * u) * (1 - v) + (h(xi, yi + 1) * (1 - u) + h(xi + 1, yi + 1) * u) * v; };
+  const d = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    let f = 0, a = 0.5, fr = 8 / n, per = 8;
+    for (let o = 0; o < 4; o++) { f += a * vn(x * fr, y * fr, per); fr *= 2; per *= 2; a *= 0.5; }
+    const g = vn(x * 32 / n, y * 32 / n, 32);
+    const i = (y * n + x) * 4; d[i] = Math.min(255, (f / 0.94) * 255); d[i + 1] = g * 255; d[i + 2] = 0; d[i + 3] = 255;
+  }
+  const t = new THREE.DataTexture(d, n, n); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true;
+  return t;
+}
+export const noiseTex = { value: makeNoiseTex() };
 const noiseChunk = `
+uniform sampler2D uNoise;
+float fbmT(vec2 p){ return texture2D(uNoise, p / 8.0).r; }   // 4옥타브 잡음 (주기 8)
+float vnT(vec2 p){ return texture2D(uNoise, p / 32.0).g; }   // 1옥타브 잡음
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
@@ -36,14 +56,14 @@ export class WorldMap {
     const g = new THREE.PlaneGeometry(W * 1.6, (this.world.yS - this.world.yN) * 1.8, 1, 1);
     g.rotateX(-Math.PI / 2);
     const mat = new THREE.ShaderMaterial({
-      uniforms: { uTime: this.time },
+      uniforms: { uTime: this.time, uNoise: noiseTex },
       vertexShader: 'varying vec2 vP; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vP = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }',
       fragmentShader: noiseChunk + `
         uniform float uTime; varying vec2 vP;
         void main(){
           vec2 p = vP * 0.35;
-          float n = fbm(p + vec2(uTime*0.05, uTime*0.03));
-          float n2 = vnoise(p*2.7 - vec2(uTime*0.08, -uTime*0.04));
+          float n = fbmT(p + vec2(uTime*0.05, uTime*0.03));
+          float n2 = vnT(p*2.7 - vec2(uTime*0.08, -uTime*0.04));
           vec3 deep = vec3(0.03,0.12,0.24), shallow = vec3(0.06,0.27,0.42);
           vec3 c = mix(deep, shallow, n*0.9);
           float caust = smoothstep(0.62, 0.78, n2) * 0.18;
@@ -81,26 +101,45 @@ export class WorldMap {
     this.provLocal = new Int16Array(P.length);  // 지방 → 나라 안에서의 번호
     const areaRank = [...C.keys()].sort((a, b) => C[b].area - C[a].area);
     const rankOf = new Map(areaRank.map((i, r) => [i, r]));
+    const ek = (a, b, c2, d) => { const k1 = a + ',' + b, k2 = c2 + ',' + d; return k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1; };
     C.forEach((c, ci) => {
-      const geos = [];
+      // 윗면(지방별 삼각분할) + 옆면은 바깥 경계만 (지방끼리 맞닿은 안쪽 벽과 밑면은 보이지 않으므로 만들지 않음)
+      const cnt = new Map();
+      for (const pi of c.provs) for (const r of P[pi].rings) for (let k = 0; k < r.length; k += 2) { const j = (k + 2) % r.length; const e = ek(r[k], r[k + 1], r[j], r[j + 1]); cnt.set(e, (cnt.get(e) || 0) + 1); }
+      const pos = [], nor = [], prov = [];
       c.provs.forEach((pi, local) => {
         this.provLocal[pi] = local;
-        const shapes = P[pi].rings.map((r) => { const v = []; for (let k = 0; k < r.length; k += 2) v.push(new THREE.Vector2(r[k], -r[k + 1])); return new THREE.Shape(v); });
-        const g = new THREE.ExtrudeGeometry(shapes, { depth: LAND_H, bevelEnabled: false, curveSegments: 1 });
-        g.deleteAttribute('uv');
-        const n = g.attributes.position.count;
-        g.setAttribute('prov', new THREE.BufferAttribute(new Float32Array(n).fill(local), 1));
-        geos.push(g);
+        for (const r of P[pi].rings) {
+          const v = []; for (let k = 0; k < r.length; k += 2) v.push(new THREE.Vector2(r[k], r[k + 1]));
+          const cw = THREE.ShapeUtils.isClockWise(v);
+          for (const t of THREE.ShapeUtils.triangulateShape(v, [])) {
+            // 위(+Y)를 향하도록 감기 방향 통일
+            const A = v[t[0]], B = v[t[1]], Cc = v[t[2]];
+            const cross = (B.x - A.x) * (Cc.y - A.y) - (B.y - A.y) * (Cc.x - A.x);
+            for (const q of (cross > 0 ? [t[0], t[2], t[1]] : t)) { pos.push(v[q].x, LAND_H, v[q].y); nor.push(0, 1, 0); prov.push(local); }
+          }
+          for (let k = 0; k < r.length; k += 2) {
+            const j = (k + 2) % r.length;
+            if (cnt.get(ek(r[k], r[k + 1], r[j], r[j + 1])) !== 1) continue;
+            const x1 = r[k], z1 = r[k + 1], x2 = r[j], z2 = r[j + 1];
+            let nx = z2 - z1, nz = -(x2 - x1); const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+            if (!cw) { nx = -nx; nz = -nz; }
+            const quad = [[x1, 0, z1], [x2, 0, z2], [x2, LAND_H, z2], [x1, 0, z1], [x2, LAND_H, z2], [x1, LAND_H, z1]];
+            for (const [x, y, z] of quad) { pos.push(x, y, z); nor.push(nx, 0, nz); prov.push(local); }
+          }
+        }
       });
-      const g = geos.length === 1 ? geos[0] : mergeGeometries(geos);
-      g.rotateX(-Math.PI / 2); // (x, -y) 평면 → XZ 평면, 두께는 +Y
-      const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0.0 });
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      g.setAttribute('prov', new THREE.Float32BufferAttribute(prov, 1));
+      const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide }); // 옆면 방향이 섞여 있어 양면
       const u = mat.userData.u = {
         uProvCol: { value: Array.from({ length: 48 }, () => new THREE.Color(0x888888)) },
         uOccProv: { value: new Int32Array([-1, -1, -1, -1]) }, uOccN: { value: new Int32Array(4) },
         uOccPts: { value: Array.from({ length: 48 }, () => new THREE.Vector2()) },
         uOccAdv: { value: new Float32Array(4) }, uOccCol: { value: Array.from({ length: 4 }, () => new THREE.Color()) },
-        uTimeL: this.time,
+        uTimeL: this.time, uNoise: noiseTex,
       };
       mat.userData.slots = [null, null, null, null]; // 점령 진행 슬롯 → 지방 번호
       mat.userData.tweens = new Map();
@@ -115,15 +154,15 @@ export class WorldMap {
             ` + noiseChunk)
           .replace('#include <color_fragment>', `#include <color_fragment>
             diffuseColor.rgb *= uProvCol[vProv];
-            float t = fbm(vW.xz * 0.9);
-            float t2 = vnoise(vW.xz * 4.0);
+            float t = fbmT(vW.xz * 0.9);
+            float t2 = vnT(vW.xz * 4.0);
             diffuseColor.rgb *= 0.78 + 0.34 * t + 0.1 * (t2 - 0.5);
             for (int s = 0; s < 4; s++) {
               if (uOccProv[s] != vProv || uOccN[s] == 0) continue;
               float md = 1e9;
               for (int i = 0; i < 12; i++) { if (i >= uOccN[s]) break; md = min(md, distance(vW.xz, uOccPts[s * 12 + i])); }
               float adv = uOccAdv[s];
-              float edge = adv - md + (vnoise(vW.xz * 1.3) - 0.5) * 0.9 * min(1.0, adv);
+              float edge = adv - md + (vnT(vW.xz * 1.3) - 0.5) * 0.9 * min(1.0, adv);
               if (edge > 0.0) {
                 float stripe = step(0.55, fract((vW.x - vW.z) * 2.2));
                 diffuseColor.rgb = mix(diffuseColor.rgb, uOccCol[s] * (0.78 + 0.34 * t) * (1.0 - 0.18 * stripe), 0.9);
