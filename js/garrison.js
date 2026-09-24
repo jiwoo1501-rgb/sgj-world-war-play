@@ -101,13 +101,14 @@ export class Garrisons {
     if (this.t > 0) return;
     this.t = 0.3;
     for (const p of this.pools.values()) p.n = 0;
-    const R = camD * 1.15 + 4;
-    const show = camD < 75;
+    const mob = this.deps.mobile;
+    const R = camD * (mob ? 0.9 : 1.15) + 4;
+    const show = camD < (mob ? 50 : 75);
     const tier = new Map();
     const U = this.deps.U;
     // 나라마다 실제 장비 모델이 다르므로, 모델별 InstancedMesh에 나눠 담는다
     // 멀리서는 단순 모델·그림자 없음, 가까이서만 정밀 모델
-    const lod = camD > 22;
+    const lod = camD > (mob ? 15 : 22);
     const put = (type, x, z, y, yaw, n) => {
       const key = type + ':' + variantKey(type, n.id) + (lod ? ':lod' : '');
       let p = this.pools.get(key);

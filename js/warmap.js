@@ -266,7 +266,7 @@ export class WarMap {
     for (const m of this.names.values()) m.material.opacity = nameA * THREE.MathUtils.clamp(m.userData.h * 60 / camD, 0.25, 1);
     this.nameGroup.visible = nameA > 0.01;
     // 부대 표식
-    const showC = camD < 110;
+    const showC = camD < (window.__mobile ? 60 : 110);
     const powOf = new Map();
     for (const c of this.counters) {
       const vis = showC && Math.hypot(c.p.x - target.x, c.p.z - target.z) < camD * 1.3;

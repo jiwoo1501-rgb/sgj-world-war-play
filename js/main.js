@@ -4,7 +4,7 @@ import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer
 import { Game, UNITS } from './game.js';
 import { WorldMap, LAND_H } from './map.js';
 import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js';
-import { FX } from './fx.js';
+import { FX, setParticleBudget } from './fx.js';
 import { makeArrow, computeFront, FrontLine } from './warfx.js';
 import { WarMap, precomputeBorders } from './warmap.js';
 import { Minimap } from './minimap.js';
@@ -16,10 +16,15 @@ const U = 0.42; // 유닛 크기 배율(지도 단위)
 const world = await fetch('data/world.json').then((r) => r.json());
 
 // ---------- 렌더러·장면 ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+// 폰·태블릿 판별: 화면을 손가락으로 조작하는 기기
+const IS_MOBILE = matchMedia('(pointer: coarse)').matches || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+window.__mobile = IS_MOBILE;
+setParticleBudget(IS_MOBILE ? 2200 : 6000);
+// 폰은 계단 현상 방지(안티에일리어싱) 대신 해상도로 보정 — 3배 밀도 화면에서 가장 큰 부담
+const renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !IS_MOBILE; // 폰은 그림자 없음 (도중에 켜고 끄면 재컴파일로 멈추므로 처음부터 결정)
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -129,20 +134,21 @@ const tY = (idx) => map.heightOf(idx);
 const citySize = (t) => THREE.MathUtils.clamp(Math.sqrt(world.countries[t.country].area) / 900, 0.22, 0.9);
 
 // ---------- 저장 · 설정 ----------
-const SAVE_KEY = 'sgj-save-v1', SET_KEY = 'sgj-settings-v1';
+const SAVE_KEY = 'sgj-save-v1', SET_KEY = 'sgj-settings-v2'; // v2: 폰 기본 품질을 '낮음'으로 바꾸면서 이전 저장값 무시
 const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { return null; } };
 function saveGame() {
   if (!game || game.over) return false;
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.serialize())); return true; } catch { return false; }
 }
 setInterval(() => { if (game && !game.over && speed > 0) saveGame(); }, 30000); // 자동 저장
-let settings = { quality: 'mid', ui: 1 };
+let settings = { quality: IS_MOBILE ? 'low' : 'mid', ui: 1 };
 try { settings = { ...settings, ...JSON.parse(localStorage.getItem(SET_KEY) || '{}') }; } catch {}
 function applySettings(ns) {
   settings = { ...settings, ...ns };
   try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch {}
   const q = settings.quality;
-  renderer.setPixelRatio(q === 'low' ? 1 : Math.min(q === 'high' ? 2 : 1.5, devicePixelRatio));
+  const dpr = devicePixelRatio || 1;
+  renderer.setPixelRatio(IS_MOBILE ? Math.min(dpr, q === 'low' ? 1.25 : q === 'high' ? 2 : 1.6) : q === 'low' ? 1 : Math.min(q === 'high' ? 2 : 1.5, dpr));
   // 그림자를 켜고 끄면 모든 재질을 다시 컴파일해야 해서 멈춤 → 대신 해상도와 갱신 빈도만 조절
   const sz = q === 'high' ? 2048 : q === 'low' ? 512 : 1024;
   if (sun.shadow.mapSize.x !== sz) { sun.shadow.mapSize.set(sz, sz); sun.shadow.map?.dispose(); sun.shadow.map = null; }
@@ -170,7 +176,7 @@ function startGame(opts, saved) {
   for (const t of game.territories) if (t.owner !== t.home) placeOccFlag(t, game.nations.get(t.owner));
   prewarm([...game.nations.keys()]);
   warMap = new WarMap(scene, world, game, { tY, makeUnit, U, fx, sound, sfxAt });
-  garrisons = new Garrisons(scene, world, game, { tY, U, citySize, sharedSegs: (i, j) => warMap.sharedSegs(i, j) });
+  garrisons = new Garrisons(scene, world, game, { tY, U, citySize, mobile: IS_MOBILE, sharedSegs: (i, j) => warMap.sharedSegs(i, j) });
   game.on('war', () => { warMap.dirty = true; garrisons.dirty = true; });
   game.on('peace', () => { warMap.dirty = true; garrisons.dirty = true; });
   game.on('capture', ({ from, to }) => { warMap.dirty = true; garrisons.dirty = true; warMap.markNames(from.id, to.id); });
@@ -611,7 +617,11 @@ function frame(forceDt) {
   if ((labFrame = (labFrame + 1) % 2) === 0 || forceDt) labels.render(scene, camera); // 지도 라벨(HTML)은 2프레임에 한 번
   if (saved) camera.position.copy(saved);
 }
-renderer.setAnimationLoop(() => frame());
+let lastFrameT = 0;
+renderer.setAnimationLoop((now) => {
+  if (now - lastFrameT < (IS_MOBILE && settings.quality === 'low' ? 1000 / 45 : 1000 / 62)) return; // 120Hz 화면에서도 60fps(폰 저품질은 45fps)로 제한
+  lastFrameT = now; frame();
+});
 window.__sgj.fx = fx; window.__sgj.strikes = strikes;
 window.__sgj.view = (x, z, d) => setView(x, z, d, false);
 window.__sgj.frame = (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) frame(dt); };
@@ -622,7 +632,7 @@ function updateLabels(camD) {
     const pw = game.armyPow(n) * n.tech;
     v.pw.textContent = pw >= 1000 ? (pw / 1000).toFixed(1) + 'k' : Math.round(pw);
     const big = n.gdp * n.bal.eco;
-    const show = n.isPlayer || camD < 45 || (camD < 90 && big > 250) || (camD < 70 && big > 60);
+    const show = n.isPlayer || (IS_MOBILE ? (camD < 30 || (camD < 70 && big > 400) || (camD < 50 && big > 100)) : (camD < 45 || (camD < 90 && big > 250) || (camD < 70 && big > 60)));
     v.lab.visible = show;
     v.g.visible = camD < 90 || n.isPlayer; // 멀리서는 도시 모형·국기 생략 (라벨만)
   }

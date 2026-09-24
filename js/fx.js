@@ -1,7 +1,8 @@
 // 파티클 효과: 폭발 불꽃, 연기, 비행운, 총구 섬광, 항적
 import * as THREE from 'three';
 
-const N = 6000;
+let N = 6000; // 파티클 최대 수 (폰은 줄임)
+export function setParticleBudget(n) { N = n; }
 export class FX {
   constructor(scene) {
     this.pos = new Float32Array(N * 3); this.col = new Float32Array(N * 4); this.size = new Float32Array(N);

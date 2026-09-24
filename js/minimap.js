@@ -41,6 +41,7 @@ export class Minimap {
     }
   }
   update(dt, target, camD, aspect) {
+    if (!this.cv.offsetParent) return; // 폰처럼 미니맵이 숨겨진 화면에서는 그리지 않음
     this.t -= dt;
     if (this.t > 0) return;
     this.t = 0.25;

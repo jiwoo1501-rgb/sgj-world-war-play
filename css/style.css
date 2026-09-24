@@ -33,7 +33,7 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
 /* 공통 패널: 금속 그라데이션 + 금테 + 모서리 장식 */
 .panel, .start-card, .help-card, .bal-card {
   position: fixed; background: linear-gradient(180deg, var(--panel-a), var(--panel-b));
-  border: 1px solid var(--line); border-radius: 6px; backdrop-filter: blur(8px);
+  border: 1px solid var(--line); border-radius: 6px;
   box-shadow: 0 10px 34px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(0,0,0,0.4);
 }
 .panel::before, .panel::after, .start-card::before, .start-card::after {
