@@ -84,7 +84,17 @@ function resize() {
   const w = document.documentElement.clientWidth || innerWidth, h = document.documentElement.clientHeight || innerHeight;
   if (w === lastW && h === lastH) return;
   lastW = w; lastH = h;
-  camera.aspect = w / h; camera.updateProjectionMatrix();
+  camera.aspect = w / h;
+  // 세로로 긴 화면은 세로 시야각을 넓혀 가로로 보이는 범위를 유지
+  const hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(20)) * (16 / 9));
+  camera.fov = THREE.MathUtils.clamp(THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hfov / 2) / camera.aspect)), 40, 72);
+  camera.updateProjectionMatrix();
+  // UI 배율: 화면 크기에 맞춰 패널·버튼·글자 전체를 키우거나 줄임
+  const phoneP = w <= 760 || (h > w && w <= 1100), phoneL = h <= 520 && w > 560;
+  const ui = phoneP ? THREE.MathUtils.clamp(w / 400, 0.82, w > 760 ? 1.5 : 1.2)
+    : phoneL ? THREE.MathUtils.clamp(h / 400, 0.8, 1.1)
+    : THREE.MathUtils.clamp(Math.min(w / 1250, h / 860), 0.62, 1.5);
+  document.documentElement.style.setProperty('--ui', ui.toFixed(3));
   renderer.setSize(w, h); labels.setSize(w, h);
 }
 resize();
