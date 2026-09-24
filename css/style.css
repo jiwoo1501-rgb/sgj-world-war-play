@@ -74,7 +74,7 @@ button:disabled { opacity: 0.38; cursor: not-allowed; }
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px;
   background: radial-gradient(ellipse at center, rgba(6,11,17,0.35), rgba(3,6,10,0.8) 75%); }
 #start { background: linear-gradient(90deg, rgba(3,6,10,0.88) 0%, rgba(3,6,10,0.55) 45%, rgba(3,6,10,0.05) 100%); place-items: center start; padding-left: max(16px, 5vw); }
-.start-card { position: relative; width: min(560px, 100%); max-height: calc(92vh / var(--ui, 1)); display: flex; flex-direction: column; padding: 26px 26px 22px; }
+.start-card { position: relative; width: min(560px, calc((100vw - 32px) / var(--ui, 1))); max-height: calc(92vh / var(--ui, 1)); display: flex; flex-direction: column; padding: 26px 26px 22px; }
 .brand small { font-family: var(--num); letter-spacing: 4px; color: var(--gold); font-size: 12px; font-weight: 700; }
 .brand h1 { font-family: var(--display); font-weight: 400; font-size: clamp(48px, 9vw, 76px); line-height: 1; margin: 4px 0 10px; letter-spacing: 4px;
   background: linear-gradient(180deg, #fff6d8, var(--gold-2) 35%, var(--gold) 65%, var(--gold-3)); -webkit-background-clip: text; background-clip: text; color: transparent;
@@ -222,10 +222,10 @@ input:not([type=range]):not([type=file]):not([type=checkbox]), select { backgrou
 #snd-pop input { accent-color: var(--gold); }
 
 /* ---------- 도움말 · 밸런스 · 결과 ---------- */
-.help-card { position: relative; max-width: 540px; padding: 22px 24px; }
+.help-card { position: relative; max-width: min(540px, calc((100vw - 32px) / var(--ui, 1))); padding: 22px 24px; }
 .help-card h2, .bal-card h2 { font-family: var(--display); font-weight: 400; margin: 0 0 6px; color: var(--gold-2); letter-spacing: 1px; }
 .help-card ul { padding-left: 18px; line-height: 1.9; font-size: 14px; }
-.bal-card { position: relative; width: min(920px, 100%); max-height: calc(92vh / var(--ui, 1)); display: flex; flex-direction: column; padding: 18px; }
+.bal-card { position: relative; width: min(920px, calc((100vw - 32px) / var(--ui, 1))); max-height: calc(92vh / var(--ui, 1)); display: flex; flex-direction: column; padding: 18px; }
 .bal-card header { display: flex; align-items: center; justify-content: space-between; }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .presets .warn { border-color: rgba(255,120,90,0.5); }
@@ -249,10 +249,11 @@ tr.focus { background: rgba(242,216,143,0.1); }
 
 /* ---------- 메인 메뉴 · 일시정지 · 설정 · 결과 ---------- */
 #menu { background: linear-gradient(90deg, rgba(3,6,10,0.9) 0%, rgba(3,6,10,0.5) 45%, rgba(3,6,10,0.05) 100%); place-items: center start; padding-left: max(16px, 6vw); }
-.menu-card { width: min(460px, 100%); }
-.small-card { width: min(420px, 100%); }
+.menu-card { width: min(460px, calc((100vw - 32px) / var(--ui, 1))); }
+.small-card { width: min(420px, calc((100vw - 32px) / var(--ui, 1))); }
 #pause, #settings { z-index: 35; }
 #help { z-index: 40; }
+#balance { z-index: 38; }
 .menu-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; }
 .menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 16px; text-align: left; border-color: var(--line); position: relative; }
 .menu-item b { font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: 1px; }

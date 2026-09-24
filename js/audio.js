@@ -26,16 +26,18 @@ export class Sound {
   constructor() {
     this.pref = loadPref();
     this.ctx = null;
-    this.intensity = 0.15; this.target = 0.15;
+    this.intensity = 0.3; this.target = 0.3;
     this.last = {};
   }
 
   // 사용자 첫 조작 때 호출 (브라우저 자동재생 정책)
   unlock() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {} // iOS 무음 스위치가 켜져 있어도 재생
+    if (this.ctx) { if (this.ctx.state !== 'running') this.ctx.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    const c = this.ctx = new AC();
+    const c = this.ctx = new AC({ latencyHint: 'interactive' });
+    if (c.state !== 'running') c.resume();
     this.master = c.createGain();
     const comp = c.createDynamicsCompressor();
     comp.threshold.value = -14; comp.ratio.value = 4; comp.attack.value = 0.005; comp.release.value = 0.25;
@@ -64,7 +66,7 @@ export class Sound {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, p = this.pref;
     this.master.gain.setTargetAtTime(p.muted ? 0 : 1, t, 0.05);
-    this.musicBus.gain.setTargetAtTime(p.music * 0.6, t, 0.1);
+    this.musicBus.gain.setTargetAtTime(p.music * 2.2, t, 0.1);
     this.sfxBus.gain.setTargetAtTime(p.sfx, t, 0.05);
   }
   setPref(k, v) { this.pref[k] = v; try { localStorage.setItem(PREF_KEY, JSON.stringify(this.pref)); } catch {} this.applyPref(); }
@@ -346,8 +348,8 @@ export class Sound {
     const bus = this.sfxBus;
     const o = this.out(bus, 0, 0.7);
     // 배경음악 잠시 낮춤
-    this.musicBus.gain.setTargetAtTime(this.pref.music * 0.15, t0, 0.1);
-    this.musicBus.gain.setTargetAtTime(this.pref.music * 0.6, t0 + (big ? 5 : 3.2), 0.6);
+    this.musicBus.gain.setTargetAtTime(this.pref.music * 0.5, t0, 0.1);
+    this.musicBus.gain.setTargetAtTime(this.pref.music * 2.2, t0 + (big ? 5 : 3.2), 0.6);
     // 1) 팀파니 크레셴도 롤
     const rollEnd = t0 + (big ? 1.2 : 0.8), hits = big ? 16 : 11;
     for (let i = 0; i < hits; i++) { const tt = t0 + (i / hits) * (rollEnd - t0); this.timpani(tt, 0.15 + 0.7 * (i / hits) ** 1.5, bus); }

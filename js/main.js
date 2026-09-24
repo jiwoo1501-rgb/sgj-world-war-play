@@ -55,8 +55,9 @@ const ui = new UI(world);
 const sound = new Sound();
 ui.sound = sound;
 // 브라우저 정책상 첫 터치/클릭 때 소리를 켠다
-addEventListener('pointerdown', () => sound.unlock(), true);
-addEventListener('keydown', () => sound.unlock(), true);
+// iOS는 touchend/click에서만 소리를 켤 수 있어 여러 이벤트에 걸어 둠
+for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) addEventListener(ev, () => sound.unlock(), true);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sound.unlock(); });
 addEventListener('click', (e) => { if (e.target.closest?.('button')) sound.click(); }, true);
 
 // 화면 위치 기준 소리 크기·좌우
@@ -326,7 +327,7 @@ function removeExp(e) {
   expVis.delete(e.id);
 }
 const fadingArrows = [];
-window.__sgj = { expVis, get game() { return game; }, get warMap() { return warMap; }, get garrisons() { return garrisons; }, get minimap() { return minimap; }, map }; // 디버그용
+window.__sgj = { expVis, get game() { return game; }, get warMap() { return warMap; }, get garrisons() { return garrisons; }, get minimap() { return minimap; }, map, sound }; // 디버그용
 function updateArrows(dt) {
   for (let i = fadingArrows.length - 1; i >= 0; i--) {
     const a = fadingArrows[i], u = a.material.uniforms;
@@ -634,7 +635,7 @@ function updateMusic() {
     if (e.owner === ui.me.id || e.defender === ui.me.id) mine += e.state === 'battle' ? 1 : 0.5;
     if (e.state === 'battle' && sfxAt(e.to.x, e.to.y)[0] > 0.2) near++;
   }
-  sound.setIntensity(game.over ? 0 : 0.2 + Math.min(3, mine) * 0.22 + Math.min(4, near) * 0.06);
+  sound.setIntensity(game.over ? 0 : 0.32 + Math.min(3, mine) * 0.2 + Math.min(4, near) * 0.06);
 }
 
 // 전투기가 전선을 가로질러 날며 폭탄을 떨어뜨림
