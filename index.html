@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>세계정복</title>
+<meta name="description" content="대한민국 중심 실제 세계지도 위에서 벌이는 실시간 3D 국가 전쟁 게임">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌏</text></svg>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="세계정복">
+<meta name="theme-color" content="#061019">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
+</script>
+</head>
+<body>
+<div id="view"></div>
+
+<!-- 시작 화면 -->
+<section id="start" class="modal" hidden>
+  <div class="start-card">
+    <h1>세계정복 <span>3D</span></h1>
+    <p class="lead">실제 국경 위에서 벌이는 실시간 국가 전쟁. 나라를 고르고 세계 GDP의 60%를 장악하세요.</p>
+    <label class="field-label">플레이할 나라</label>
+    <input id="nation-search" placeholder="나라 이름 검색" autocomplete="off">
+    <div id="nation-list"></div>
+    <div class="row">
+      <label>AI 호전성
+        <select id="aggr">
+          <option value="0.5">평화로움</option>
+          <option value="1">보통</option>
+          <option value="1.6">호전적</option>
+          <option value="2.5">전쟁광</option>
+        </select>
+      </label>
+      <button id="start-bal" class="ghost">⚖️ 밸런스 조정</button>
+      <button id="start-btn" class="primary">전쟁 시작</button>
+    </div>
+  </div>
+</section>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <header id="top">
+    <div class="me"><span id="me-flag" class="fl"></span><b id="me-name"></b></div>
+    <div class="stat" title="자금"><i>💰</i><b id="gold">0</b><small id="income"></small></div>
+    <div class="stat" title="전투력 / 병력 한도"><i>⚔️</i><b id="power">0</b><small>/ <span id="cap"></span></small></div>
+    <div class="stat" title="보유 영토"><i>🗺️</i><b id="terr">0</b></div>
+    <div class="stat share" title="세계 GDP 점유율 (60% 달성 시 승리)"><i>🌐</i><b id="share">0%</b><div class="bar"><div id="share-bar"></div></div></div>
+    <div class="stat" title="생존 국가"><i>🏳️</i><b id="alive">0</b></div>
+    <div class="spacer"></div>
+    <div class="date" id="date"></div>
+    <div class="speed">
+      <button data-speed="0" title="일시정지 (Space)">⏸</button>
+      <button data-speed="1" title="보통 (1)">1×</button>
+      <button data-speed="2" title="빠름 (2)">2×</button>
+      <button data-speed="4" title="매우 빠름 (3)">4×</button>
+    </div>
+    <button id="home-btn" class="icon" title="우리 수도로">🏠</button>
+    <button id="bal-btn" class="icon" title="밸런스 조정">⚖️</button>
+    <button id="help-btn" class="icon" title="조작법">❔</button>
+  </header>
+
+  <aside id="build" class="panel">
+    <h3>군수 생산</h3>
+    <div id="build-list"></div>
+  </aside>
+
+  <aside id="info" class="panel" hidden>
+    <button id="info-close" class="x">✕</button>
+    <h2 id="info-title"></h2>
+    <div id="info-sub"></div>
+    <div id="info-stats"></div>
+    <div id="attack"></div>
+    <button id="info-bal" class="ghost small">⚖️ 이 나라 밸런스 조정</button>
+  </aside>
+
+  <aside id="log" class="panel">
+    <button id="log-toggle">📰 뉴스</button>
+    <ul id="log-list"></ul>
+  </aside>
+</div>
+
+<div id="toasts"></div>
+
+<div id="help" class="modal" hidden>
+  <div class="help-card">
+    <h2>조작법</h2>
+    <ul>
+      <li><b>드래그</b> 지도 이동 · <b>휠 / 두 손가락</b> 확대 · <b>우클릭 드래그</b> 회전</li>
+      <li><b>나라 클릭</b> 정보 보기 → 공격 방식 선택</li>
+      <li><b>지상 진격</b>: 국경이 맞닿은 곳만 · 점령 가능</li>
+      <li><b>상륙 작전</b>: 군함이 지상군을 싣고 바다 건너 공격 · 점령 가능</li>
+      <li><b>공습·미사일</b>: 적 병력만 줄임 (점령은 지상군이 해야 함)</li>
+      <li>영토가 늘면 수입과 병력 한도가 늘어납니다</li>
+      <li><b>⚖️ 밸런스</b>에서 어느 나라든 경제·공격·방어·병력 배율을 바꿀 수 있고 게임 중에도 바로 반영됩니다</li>
+      <li>단축키: Space 일시정지 · 1/2/3 속도 · Esc 선택 해제</li>
+    </ul>
+    <p class="muted">화면을 누르면 닫힙니다</p>
+  </div>
+</div>
+
+<section id="balance" class="modal" hidden>
+  <div class="bal-card">
+    <header>
+      <h2>⚖️ 밸런스 조정</h2>
+      <button id="bal-close" class="x">✕</button>
+    </header>
+    <p class="muted">배율 1 = 기본. 예) 병력 3 → 병력과 한도가 3배. 저장은 자동이며 게임 중 바꾸면 즉시 반영됩니다.</p>
+    <div class="presets">
+      <button data-preset="korea">🇰🇷 대한민국 초강대국</button>
+      <button data-preset="eastasia">🔥 동아시아 대전</button>
+      <button data-preset="underdog">🛡️ 약소국 강화</button>
+      <button data-preset="nerf">📉 미·중·러 약화</button>
+      <button data-preset="reset" class="warn">↺ 모두 초기화</button>
+    </div>
+    <div class="globals">
+      <label>전체 AI 호전성 <input id="g-aggr" type="number" min="0" max="5" step="0.1"></label>
+      <label>AI가 나를 노리는 정도 <input id="g-focus" type="number" min="0" max="5" step="0.1"></label>
+      <input id="bal-search" placeholder="나라 검색">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>나라</th><th>경제력</th><th>공격력</th><th>방어력</th><th>병력</th><th>AI 호전성</th><th>추가 자금</th><th></th></tr></thead>
+        <tbody id="bal-rows"></tbody>
+      </table>
+    </div>
+    <div class="bal-foot">
+      <button id="bal-export" class="ghost">💾 파일로 저장</button>
+      <label class="ghost file">📂 파일 불러오기<input id="bal-import" type="file" accept=".json" hidden></label>
+    </div>
+  </div>
+</section>
+
+<section id="over" class="modal" hidden>
+  <div class="start-card center">
+    <h1 id="over-title"></h1>
+    <p id="over-sub" class="lead"></p>
+    <button id="over-btn" class="primary">새 게임</button>
+  </div>
+</section>
+
+<div id="loading">지도를 불러오는 중…</div>
+<script type="module">
+  import('./js/main.js').then(() => document.getElementById('loading').remove())
+    .catch((e) => { document.getElementById('loading').textContent = '불러오기 실패: ' + e.message; console.error(e); });
+</script>
+</body>
+</html>
