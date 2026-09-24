@@ -37,10 +37,12 @@ export class UI {
     render();
     $('#nation-search', el).oninput = (e) => render(e.target.value.trim());
     $('#aggr', el).value = String(this.bal.aggr ?? 1);
+    $('#auto-start', el).checked = !!this.bal.autoPlayer;
     $('#start-btn', el).onclick = () => {
       this.bal.aggr = +$('#aggr', el).value; saveBalance(this.bal);
       el.hidden = true;
-      onStart({ player: pick, aggr: this.bal.aggr, playerFocus: this.bal.playerFocus ?? 1, balance: this.bal.nations });
+      this.bal.autoPlayer = $('#auto-start', el).checked; saveBalance(this.bal);
+      onStart({ player: pick, aggr: this.bal.aggr, playerFocus: this.bal.playerFocus ?? 1, balance: this.bal.nations, autoPlayer: this.bal.autoPlayer });
     };
     $('#start-bal', el).onclick = () => this.openBalance();
   }
@@ -68,6 +70,10 @@ export class UI {
     $('#bal-btn').onclick = () => this.openBalance();
     $('#home-btn').onclick = () => api.flyHome();
     $('#cam-btn').onclick = () => api.battleCam();
+    const autoBtn = $('#auto-btn');
+    const setAuto = (on, quiet) => { autoBtn.classList.toggle('on', on); api.setAuto(on); this.bal.autoPlayer = on; saveBalance(this.bal); if (!quiet) this.toast(on ? '🤖 자동 운영: AI가 우리나라를 대신 운영합니다' : '🤖 자동 운영 해제: 직접 지휘합니다'); };
+    autoBtn.onclick = () => setAuto(!autoBtn.classList.contains('on'));
+    setAuto(!!game.opts.autoPlayer, true);
     $('#log-toggle').onclick = () => $('#log').classList.toggle('open');
     this.bindSound();
     $('#help-btn').onclick = () => { $('#help').hidden = !$('#help').hidden; };

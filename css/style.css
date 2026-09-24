@@ -88,21 +88,29 @@ input:not([type=range]):not([type=file]), select { background: rgba(0,0,0,0.35);
 .speed button:last-child { border-radius: 0 8px 8px 0; }
 .speed button.on { background: var(--accent); }
 .icon { padding: 5px 8px; }
+.icon.on { background: var(--accent); border-color: transparent; }
+.chk { flex-direction: row !important; align-items: center; gap: 6px !important; color: var(--text) !important; flex-basis: 100% !important; }
+.city-label { font-size: 11px; color: #f3ead2; text-shadow: 0 1px 2px #000, 0 0 4px #000; pointer-events: none; white-space: nowrap; }
 
 /* 패널 */
 .panel { position: fixed; z-index: 10; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(6px); }
 .panel h3 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
-#build { left: 12px; top: 64px; width: 250px; padding: 12px; }
-.unit-row { display: grid; grid-template-columns: 30px 1fr auto auto auto; gap: 6px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
-.unit-row:first-child { border-top: 0; }
+/* 군수 생산: 화면 아래 가로 막대 */
+#build { left: 12px; right: 364px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); top: auto; padding: 8px; }
+#build h3 { display: none; }
+#build-list { display: flex; gap: 8px; }
+.unit-row { flex: 1 1 0; min-width: 0; display: grid; grid-template-columns: 30px 1fr auto auto; grid-template-areas: "ico info info cnt" "ico b1 b10 b10"; gap: 3px 6px; align-items: center;
+  padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,0.03); }
+.u-ico { grid-area: ico; } .u-info { grid-area: info; min-width: 0; } .u-cnt { grid-area: cnt; } .unit-row .b1 { grid-area: b1; } .unit-row .b10 { grid-area: b10; }
 .u-ico { font-size: 22px; text-align: center; }
 .u-info b { font-size: 14px; display: block; }
 .u-info small { color: var(--muted); font-size: 11px; }
 .u-cnt { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 30px; text-align: right; }
-.unit-row button { padding: 4px 7px; font-size: 12px; }
+.unit-row button { padding: 3px 7px; font-size: 12px; }
+.u-info b, .u-info small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .unit-row.dis button { opacity: 0.35; }
 
-#info { right: 12px; top: 64px; width: 300px; padding: 14px; max-height: calc(100vh - 80px); overflow-y: auto; }
+#info { right: 12px; top: 64px; width: 300px; padding: 14px; max-height: calc(100vh - 64px - 30vh - 28px); overflow-y: auto; }
 #info h2 { margin: 0; font-size: 20px; }
 #info-sub { color: var(--muted); font-size: 13px; margin: 2px 0 10px; }
 .x { position: absolute; right: 10px; top: 10px; border: 0; background: transparent; font-size: 16px; }
@@ -164,14 +172,16 @@ tr.focus { background: rgba(61,139,255,0.15); }
 
 /* 좁은 화면(폰) */
 @media (max-width: 760px) {
-  #top { gap: 8px; padding: 6px 8px; font-size: 13px; }
+  #top { gap: 5px; padding: 6px 8px; font-size: 13px; }
+  #top .icon, #top .speed button { padding: 4px 6px; font-size: 13px; }
+  #top .speed button { padding: 4px 7px; }
   #top .me b { display: none; }
   .stat b { font-size: 14px; }
   .stat small, .date, .share .bar { display: none; }
   #build { left: 0; right: 0; bottom: 0; top: auto; width: auto; border-radius: 12px 12px 0 0; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
   #build h3 { display: none; }
   #build-list { display: flex; gap: 4px; overflow-x: auto; }
-  .unit-row { grid-template-columns: auto auto; grid-template-rows: auto auto; border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; min-width: 96px; gap: 2px 4px; }
+  .unit-row { flex: 0 0 auto; grid-template-columns: auto auto; grid-template-areas: "ico info" "cnt b1"; border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; min-width: 96px; gap: 2px 4px; }
   .unit-row:first-child { border-top: 1px solid var(--line); }
   .u-info small { display: none; }
   .u-ico { font-size: 18px; }
@@ -194,19 +204,19 @@ tr.focus { background: rgba(61,139,255,0.15); }
   .stat b { font-size: 13px; }
   .speed button, .icon { padding: 3px 7px; font-size: 13px; }
   .spacer { min-width: 0; }
-  #build { top: 44px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); left: calc(6px + env(safe-area-inset-left, 0px)); width: 158px; padding: 6px; overflow-y: auto; }
-  #build h3 { display: none; }
-  .unit-row { grid-template-columns: 24px 1fr auto auto; gap: 4px; padding: 3px 0; }
+  #build { top: auto; bottom: calc(4px + env(safe-area-inset-bottom, 0px)); left: calc(6px + env(safe-area-inset-left, 0px)); right: calc(6px + env(safe-area-inset-right, 0px)); width: auto; padding: 4px; }
+  #build-list { gap: 4px; }
+  .unit-row { grid-template-columns: 22px 1fr auto; grid-template-areas: "ico info cnt" "ico b1 b1"; gap: 1px 4px; padding: 3px 6px; }
   .u-info small, .unit-row .b10 { display: none; }
   .u-ico { font-size: 17px; }
   .u-info b { font-size: 12px; }
   .u-cnt { min-width: 22px; font-size: 12px; }
-  #info { top: 44px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); right: calc(6px + env(safe-area-inset-right, 0px)); width: 290px; max-height: none; padding: 10px; }
+  #info { top: 44px; bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: calc(6px + env(safe-area-inset-right, 0px)); width: 290px; max-height: none; padding: 10px; }
   #info h2 { font-size: 17px; }
   #info-stats { gap: 4px; margin-bottom: 8px; }
   #info-stats > div { padding: 4px 6px; }
   .atk-grid button { padding: 5px 4px; }
-  #log { left: calc(172px + env(safe-area-inset-left, 0px)); bottom: calc(8px + env(safe-area-inset-bottom, 0px)); right: auto; top: auto; width: auto; max-height: none; background: transparent; border: 0; backdrop-filter: none; padding: 0; }
+  #log { left: calc(6px + env(safe-area-inset-left, 0px)); bottom: calc(74px + env(safe-area-inset-bottom, 0px)); right: auto; top: auto; width: auto; max-height: none; background: transparent; border: 0; backdrop-filter: none; padding: 0; }
   #log-list { display: none; }
   #log-toggle { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
   #log.open { background: var(--panel); border: 1px solid var(--line); width: min(360px, 45vw); max-height: 60vh; padding: 6px; }
@@ -219,4 +229,11 @@ tr.focus { background: rgba(61,139,255,0.15); }
   #nation-list { max-height: 34vh; min-height: 80px; }
   .bal-card { max-height: 96vh; padding: 12px; }
   .modal { padding: 8px; }
+}
+
+/* 중간 폭 PC: 뉴스 패널을 좁게 */
+@media (max-width: 1150px) and (min-width: 761px) and (min-height: 521px) {
+  #log { width: 280px; }
+  #build { right: 304px; }
+  .u-info small { display: none; }
 }

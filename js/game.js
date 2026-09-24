@@ -191,7 +191,7 @@ export class Game {
     for (const n of this.nations.values()) {
       if (!n.alive) continue;
       n.gold += this.income(n) * dt;
-      if (!n.isPlayer) this.ai(n, dt);
+      if (!n.isPlayer || this.opts.autoPlayer) this.ai(n, dt); // 자동 운영이면 내 나라도 AI가 운영
     }
     for (const e of this.expeditions) this.stepExp(e, dt);
     if (Math.floor(this.day) !== Math.floor(this.day - dt)) this.checkPeace();

@@ -228,7 +228,7 @@ export class WarMap {
     }
     // 가까이 보면 전선 양쪽에 3D 병력 배치 + 전선 곳곳의 포격전
     this.garT -= dt;
-    if (this.garT <= 0) { this.garT = 0.5; this.placeGarrisons(camD, target); }
+    // (3D 병력 배치는 garrison.js가 모든 국경에 대해 담당)
     this.fireT -= dt;
     if (this.fireT <= 0 && this.counters.length && camD < 90) {
       this.fireT = 0.25 + Math.random() * 0.4;

@@ -7,6 +7,7 @@ import { makeUnit, makeFlag, flagTime } from './models.js';
 import { FX } from './fx.js';
 import { makeArrow, computeFront, FrontLine } from './warfx.js';
 import { WarMap } from './warmap.js';
+import { Garrisons } from './garrison.js';
 import { UI } from './ui.js';
 import { Sound } from './audio.js';
 
@@ -101,7 +102,7 @@ function setView(x, z, d, animate = true) {
 }
 
 // ---------- 게임 ----------
-let game = null, speed = 1, acc = 0, warMap = null;
+let game = null, speed = 1, acc = 0, warMap = null, garrisons = null;
 const strikes = []; // 전투기 폭격 연출
 const nationVis = new Map();   // 나라별 수도 도시·국기·주둔군·라벨
 const expVis = new Map();      // 원정군 3D 그룹
@@ -116,10 +117,11 @@ ui.showStart((opts) => {
   for (const t of game.territories) map.setColor(t.idx, landColor(game.nations.get(t.owner)));
   for (const n of game.nations.values()) buildNationVis(n);
   warMap = new WarMap(scene, world, game, { tY, makeUnit, U, fx, sound, sfxAt });
-  game.on('war', () => { warMap.dirty = true; });
-  game.on('peace', () => { warMap.dirty = true; });
-  game.on('capture', ({ from, to }) => { warMap.dirty = true; warMap.markNames(from.id, to.id); });
-  game.on('eliminated', (n) => { warMap.dirty = true; warMap.markNames(n.id); });
+  garrisons = new Garrisons(scene, world, game, { tY, U, sharedSegs: (i, j) => warMap.sharedSegs(i, j) });
+  game.on('war', () => { warMap.dirty = true; garrisons.dirty = true; });
+  game.on('peace', () => { warMap.dirty = true; garrisons.dirty = true; });
+  game.on('capture', ({ from, to }) => { warMap.dirty = true; garrisons.dirty = true; warMap.markNames(from.id, to.id); });
+  game.on('eliminated', (n) => { warMap.dirty = true; garrisons.dirty = true; warMap.markNames(n.id); });
   game.on('capital', (n) => warMap.markNames(n.id));
   game.on('log', (l) => { ui.log(l); if (l.kind === 'danger' && /진격|상륙|공습|발사/.test(l.msg)) sound.alarm(); });
   game.on('launch', (e) => {
@@ -148,6 +150,7 @@ ui.showStart((opts) => {
     select: (i) => select(i),
     flyTo: (at) => setView(at.x, at.z, 16),
     battleCam: () => battleCam(),
+    setAuto: (on) => { game.opts.autoPlayer = on; },
   });
   ui.setSpeed(1);
   const me = game.nations.get(opts.player);
@@ -237,6 +240,7 @@ function clearFront(v) {
   if (v.fl) { v.fl.dispose(); v.fl = null; }
   if (v.defs) { scene.remove(v.defs); v.defs = null; }
   if (v.landers) { v.landers.forEach((m) => v.g.remove(m)); v.landers = null; }
+  if (v.arty) { v.arty.forEach((m) => v.g.remove(m)); v.arty = null; }
 }
 function removeExp(e) {
   const v = expVis.get(e.id); if (!v) return;
@@ -271,6 +275,8 @@ function setupFront(v) {
     v.defs.add(m);
   }
   scene.add(v.defs);
+  const A0 = game.nations.get(e.owner);
+  v.arty = [0.25, 0.75].map((slot) => { const m = makeUnit('arty', A0.color); m.scale.setScalar(U); m.userData = { slot }; v.g.add(m); return m; });
   if (e.kind === 'sea') { // 상륙군
     const A = game.nations.get(e.owner);
     v.landers = [];
@@ -364,6 +370,7 @@ function updateExp(v, dt, time) {
     });
     v.fl.update(dt, push);
   }
+  if (v.arty) v.arty.forEach((m) => { const [x, z, nx, nz] = slotPt(m.userData.slot, -1, e.kind === 'sea' ? 1.2 : 2.6); m.position.set(x, 0.16, z); m.rotation.set(0, Math.atan2(-nz, nx), 0); });
   const center = v.fl ? slotPt(0.5, 0) : [cx, cz];
   v.lab.position.set(center[0] - v.g.position.x, (e.kind === 'air' ? 4 : 1.4), center[1] - v.g.position.z);
   // 전투 연출: 양측 사격, 포격, 전선 폭발
@@ -408,7 +415,8 @@ function updateExp(v, dt, time) {
       v.artT = 0.9 + Math.random() * 1.6;
       const ty = tY(e.target);
       const own = Math.random() < 0.7;
-      const [sx, sz] = slotPt(Math.random(), own ? -1 : 1, own ? 3.2 : -3.2);
+      const gunM = own && v.arty ? v.arty[Math.floor(Math.random() * v.arty.length)] : null;
+      const [sx, sz] = gunM ? [gunM.position.x + Math.cos(gunM.rotation.y) * 0.45, gunM.position.z - Math.sin(gunM.rotation.y) * 0.45] : slotPt(Math.random(), own ? -1 : 1, own ? 3.2 : -3.2);
       const [tx, tz] = slotPt(Math.random(), own ? 1.9 + Math.random() : -1.6 - Math.random());
       fx.muzzle(sx, ty + 0.2, sz);
       const [vv, pp] = sfxAt(sx, sz); sound.cannon(vv * 0.6, pp);
@@ -479,6 +487,7 @@ function frame(forceDt) {
     for (const v of expVis.values()) updateExp(v, dt, time);
     updateArrows(dt);
     warMap?.update(dt, camD, controls.target);
+    garrisons?.update(dt, camD, controls.target);
     updateStrikes(dt);
     uiT -= dt; if (uiT <= 0) { uiT = 0.25; ui.refresh(); }
     labT -= dt; if (labT <= 0) { labT = 0.3; updateLabels(camD); }
