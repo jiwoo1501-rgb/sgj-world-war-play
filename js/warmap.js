@@ -6,6 +6,33 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 
 const key = (x, y) => x.toFixed(2) + ',' + y.toFixed(2);
+// 지방 사이 국경선은 지형이라 변하지 않음 → 게임과 무관하게 한 번만 계산해 모듈에 보관
+const SHARED = new Map(), VSETS = new Map();
+function vsetOf(world, i) {
+  let s = VSETS.get(i);
+  if (!s) { s = new Set(); for (const r of world.provinces[i].rings) for (let k = 0; k < r.length; k += 2) s.add(key(r[k], r[k + 1])); VSETS.set(i, s); }
+  return s;
+}
+export function sharedSegsOf(world, i, j) {
+  const k = i < j ? i + '|' + j : j + '|' + i;
+  let segs = SHARED.get(k);
+  if (segs) return segs;
+  const set = vsetOf(world, i); segs = [];
+  for (const r of world.provinces[j].rings) for (let q = 0; q < r.length; q += 2) {
+    const w = (q + 2) % r.length;
+    if (set.has(key(r[q], r[q + 1])) && set.has(key(r[w], r[w + 1]))) segs.push([r[q], r[q + 1], r[w], r[w + 1]]);
+  }
+  SHARED.set(k, segs);
+  return segs;
+}
+// 메뉴 화면 등 쉬는 틈에 모든 인접 지방 쌍을 미리 계산
+export function precomputeBorders(world, onDone) {
+  const P = world.provinces, jobs = [];
+  P.forEach((p, i) => { for (const j of p.land) if (j > i) jobs.push([i, j]); });
+  const idle = window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 10 }), 16));
+  const run = (dl) => { while (jobs.length && dl.timeRemaining() > 2) { const [i, j] = jobs.pop(); sharedSegsOf(world, i, j); } if (jobs.length) idle(run); else onDone?.(); };
+  idle(run);
+}
 
 const frontVS = `
   attribute vec2 offs; attribute vec3 col; attribute float edge;
@@ -42,7 +69,8 @@ export class WarMap {
     return this.vsets.get(i);
   }
   // 두 영토가 실제로 맞닿은 국경 선분 (캐시)
-  sharedSegs(i, j) {
+  sharedSegs(i, j) { return sharedSegsOf(this.world, i, j); }
+  sharedSegsOld(i, j) {
     const k = i < j ? i + '|' + j : j + '|' + i;
     if (this.shared.has(k)) return this.shared.get(k);
     const set = this.vset(i), segs = [];

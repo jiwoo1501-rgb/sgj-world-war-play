@@ -3,10 +3,10 @@ import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Game, UNITS } from './game.js';
 import { WorldMap, LAND_H } from './map.js';
-import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm } from './models.js';
+import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js';
 import { FX } from './fx.js';
 import { makeArrow, computeFront, FrontLine } from './warfx.js';
-import { WarMap } from './warmap.js';
+import { WarMap, precomputeBorders } from './warmap.js';
 import { Minimap } from './minimap.js';
 import { Garrisons } from './garrison.js';
 import { UI } from './ui.js';
@@ -143,10 +143,9 @@ function applySettings(ns) {
   try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch {}
   const q = settings.quality;
   renderer.setPixelRatio(q === 'low' ? 1 : Math.min(q === 'high' ? 2 : 1.5, devicePixelRatio));
-  renderer.shadowMap.enabled = q !== 'low'; sun.castShadow = q !== 'low';
-  const sz = q === 'high' ? 2048 : 1024;
+  // 그림자를 켜고 끄면 모든 재질을 다시 컴파일해야 해서 멈춤 → 대신 해상도와 갱신 빈도만 조절
+  const sz = q === 'high' ? 2048 : q === 'low' ? 512 : 1024;
   if (sun.shadow.mapSize.x !== sz) { sun.shadow.mapSize.set(sz, sz); sun.shadow.map?.dispose(); sun.shadow.map = null; }
-  scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
   window.__uiMult = +settings.ui || 1;
   lastW = 0; // UI 배율 다시 계산
 }
@@ -582,9 +581,9 @@ function frame(forceDt) {
   controls.update();
   const camD = camera.position.distanceTo(controls.target);
   // 멀리서 볼 땐 그림자가 거의 안 보이므로 20프레임에 한 번만 갱신
-  const farShadow = camD > 45;
-  renderer.shadowMap.autoUpdate = !farShadow;
-  if (farShadow && (shadowTick = (shadowTick + 1) % 20) === 0) renderer.shadowMap.needsUpdate = true;
+  const slowShadow = camD > 45 || settings.quality === 'low';
+  renderer.shadowMap.autoUpdate = !slowShadow;
+  if (slowShadow && (shadowTick = (shadowTick + 1) % (settings.quality === 'low' ? 45 : 20)) === 0) renderer.shadowMap.needsUpdate = true;
   // 그림자 영역을 화면 중심에 맞춤
   const sh = THREE.MathUtils.clamp(camD * 0.55, 8, 60);
   Object.assign(sun.shadow.camera, { left: -sh, right: sh, top: sh, bottom: -sh }); sun.shadow.camera.updateProjectionMatrix();
@@ -693,25 +692,54 @@ function battleCam() {
 function renderThumbs(nation) {
   const color = nation.color;
   const out = {};
+  const W = 384, H = 276; // 2배로 그려서 줄이면 계단 현상이 줄어듦
+  const rt = new THREE.WebGLRenderTarget(W, H); rt.texture.colorSpace = THREE.SRGBColorSpace;
+  const sc = new THREE.Scene();
+  sc.add(new THREE.HemisphereLight(0xdfeaff, 0x3a3020, 1.6));
+  const d = new THREE.DirectionalLight(0xfff2da, 2.6); d.position.set(3, 5, 4); sc.add(d);
+  const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 50);
+  const buf = new Uint8Array(W * H * 4);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx = cv.getContext('2d');
+  const small = document.createElement('canvas'); small.width = 192; small.height = 138; const sx = small.getContext('2d');
+  const prevClear = renderer.getClearColor(new THREE.Color()), prevAlpha = renderer.getClearAlpha();
   try {
-    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-    r.setSize(192, 138); r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
-    const sc = new THREE.Scene();
-    sc.add(new THREE.HemisphereLight(0xdfeaff, 0x3a3020, 1.6));
-    const d = new THREE.DirectionalLight(0xfff2da, 2.6); d.position.set(3, 5, 4); sc.add(d);
-    const cam = new THREE.PerspectiveCamera(30, 192 / 138, 0.1, 50);
     const shots = { inf: ['inf', 1.5, 0.55], tank: ['tank', 2.4, 0.3], jet: ['jet', 3.0, 0.1], ship: ['ship', 3.2, 0.25], missile: ['missile', 1.7, 0.05] };
+    renderer.setClearColor(0x000000, 0);
     for (const [k, [type, dist, h]] of Object.entries(shots)) {
       const m = makeUnit(type, color, nation.id);
       if (type === 'missile') m.rotation.z = 0.5;
       sc.add(m);
       const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3());
       cam.position.set(c.x + dist * 0.75, c.y + dist * 0.45 + h, c.z + dist * 0.8); cam.lookAt(c);
-      r.render(sc, cam);
-      out[k] = r.domElement.toDataURL('image/png');
+      renderer.setRenderTarget(rt); renderer.clear(); renderer.render(sc, cam);
+      renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+      const img = cx.createImageData(W, H);
+      for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4); // 위아래 뒤집기
+      cx.putImageData(img, 0, 0);
+      sx.clearRect(0, 0, 192, 138); sx.drawImage(cv, 0, 0, 192, 138);
+      out[k] = small.toDataURL('image/png');
       sc.remove(m);
     }
-    r.dispose(); r.forceContextLoss?.();
   } catch (err) { console.warn('썸네일 생성 실패', err); }
+  renderer.setRenderTarget(null); renderer.setClearColor(prevClear, prevAlpha); rt.dispose();
   return out;
 }
+
+// 셰이더 미리 컴파일: 화살표·전선·유닛·국기 등을 처음 쓰는 순간 멈추지 않도록 메뉴 화면에서 미리 준비
+async function warmupShaders() {
+  const g = new THREE.Group(); g.position.set(0, -30, 0);
+  const add = (o) => { g.add(o); return o; };
+  add(makeArrow({ x: 0, z: 0 }, { x: 5, z: 0 }, '#ffffff', 0.4, 0.2, true));
+  for (const t of ['inf', 'tank', 'arty', 'jet', 'ship', 'missile', 'city']) add(makeUnit(t, '#888888', 'KR'));
+  add(makeFlag('#888888'));
+  for (const lod of [false, true]) { const im = makeInstanced('tank', 1, 'KR', lod); im.count = 1; im.setMatrixAt(0, new THREE.Matrix4()); add(im); }
+  const tex = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); tex.needsUpdate = true;
+  add(new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })));
+  const pts = [0, 1, 2].map((i) => ({ x: i, z: 0, nx: 0, nz: 1, snx: 0, snz: 1, lim: 5 }));
+  const fl = new FrontLine(g, { pts, anchor: [0, 0], maxPush: 1, reach: 2 }, 0.2);
+  scene.add(g);
+  try { await (renderer.compileAsync ? renderer.compileAsync(scene, camera) : Promise.resolve(renderer.compile(scene, camera))); } catch {}
+  fl.dispose(); scene.remove(g);
+}
+setTimeout(() => warmupShaders(), 300);
+setTimeout(() => precomputeBorders(world), 600); // 국경선 미리 계산 (게임 시작 시 멈춤 방지)
