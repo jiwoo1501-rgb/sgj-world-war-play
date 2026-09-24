@@ -22,7 +22,7 @@ export class Garrisons {
 
   // 주요 도시: 어느 영토에 속하는지 찾아 작은 도시 모형과 이름표를 둠
   buildCities() {
-    const W = this.world.countries;
+    const W = this.world.provinces;
     const inside = (x, z, i) => {
       for (const r of W[i].rings) {
         let inn = false;

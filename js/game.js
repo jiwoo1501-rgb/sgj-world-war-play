@@ -42,7 +42,8 @@ export class Game {
     this.t = 0; this.day = 0;
     this.listeners = {};
     this.expeditions = []; this.nextExpId = 1;
-    this.territories = world.countries.map((c, i) => ({ ...c, idx: i }));
+    // 게임의 최소 단위는 '지방' (나라마다 면적에 따라 1~44개)
+    this.territories = world.provinces.map((p, i) => { const c = world.countries[p.c]; return { ...p, idx: i, a2: c.a2, sov: c.sov, country: p.c, cname: c.name }; });
     this.nations = new Map();
     this.peace = 40; // 시작 후 AI 공격 금지 시간(초)
     this.wars = new Map(); // 'A|B' → { a, b, since, last }
@@ -54,28 +55,39 @@ export class Game {
   log(msg, kind = '', at = null) { this.emit('log', { msg, kind, day: this.day, at }); }
 
   build() {
-    const S = this.world.stats;
+    const S = this.world.stats, T = this.territories;
     let hue = 0;
-    for (const t of this.territories) {
-      const nid = t.sov || t.a2;
-      t.owner = nid; t.home = nid;
-      if (t.sov) { t.gdp = 2 + Math.sqrt(t.area) * 0.04; continue; }
-      const s = S[t.a2];
-      const gdp = s ? s[0] : 4 + Math.sqrt(t.area) * 0.12;
-      const pop = s ? s[1] : 0.5 + Math.sqrt(t.area) * 0.008;
-      const mil = s ? s[2] : 3 + Math.sqrt(t.area) / 90;
+    // 1) 나라 만들기 (속령이 아닌 나라마다)
+    this.world.countries.forEach((c, ci) => {
+      if (c.sov) return;
+      const nid = c.a2;
+      const s = S[nid];
+      const gdp = s ? s[0] : 4 + Math.sqrt(c.area) * 0.12;
+      const pop = s ? s[1] : 0.5 + Math.sqrt(c.area) * 0.008;
+      const mil = s ? s[2] : 3 + Math.sqrt(c.area) / 90;
       const tech = s ? s[3] : 0.72;
-      t.gdp = gdp;
       hue = (hue + 137.508) % 360;
       const bal = { ...DEFAULT_BAL, ...(this.opts.balance?.[nid] || {}) };
       const color = PALETTE[nid] || `hsl(${hue.toFixed(0)}, ${40 + (hue % 25)}%, ${50 + (hue % 12)}%)`;
+      const provs = c.provs.map((i) => T[i]);
+      const cap = provs.find((t) => t.cap) || provs[0];
+      // 경제력 배분: 수도권 30% + 나머지는 면적 비례
+      const tot = provs.reduce((a, t) => a + Math.sqrt(t.area + 1), 0) || 1;
+      for (const t of provs) t.gdp = (provs.length === 1 ? gdp : gdp * (t === cap ? 0.3 : 0) + gdp * (provs.length === 1 ? 0 : 0.7) * Math.sqrt(t.area + 1) / tot);
       this.nations.set(nid, {
-        id: nid, name: t.name, flag: flagOf(nid), color, gdp, pop, mil, tech, bal,
+        id: nid, name: c.name, flag: flagOf(nid), color, gdp, pop, mil, tech, bal,
         units: { inf: 0, tank: 0, jet: 0, ship: 0, missile: 0 },
-        gold: 50 + gdp * 0.3 + bal.gold, alive: true, capital: t.idx, coastal: t.coastal,
+        gold: 50 + gdp * 0.3 + bal.gold, alive: true, capital: cap.idx, coastal: false,
         isPlayer: nid === this.opts.player, hostile: new Map(), busy: 0,
         nextAI: rand(1, 4), nextBuild: rand(0.5, 2), attacked: 0,
       });
+    });
+    // 2) 지방 주인 정하기 (속령은 본국 소유)
+    for (const t of T) {
+      const nid = t.sov || t.a2;
+      t.owner = nid; t.home = nid;
+      if (t.sov) t.gdp = 2 + Math.sqrt(t.area) * 0.04;
+      if (!this.nations.has(nid)) { t.owner = t.home = t.a2; }
     }
     for (const n of this.nations.values()) {
       n.coastal = this.owned(n.id).some((t) => t.coastal);
@@ -92,7 +104,7 @@ export class Game {
   owned(nid) { return this.territories.filter((t) => t.owner === nid); }
   cap(n) { return (n.pop * 0.8 + n.mil * 8 + 10 + (n.terrCap ?? n.gdp * 0.02)) * n.bal.troops; }
   // 영토가 늘면 병력 한도도 는다 (점령지는 GDP 비례 + 기본 15)
-  recalcCap(n) { n.terrCap = this.owned(n.id).reduce((s, t) => s + (t.home === n.id ? t.gdp * 0.02 : 15 + t.gdp * 0.04), 0); }
+  recalcCap(n) { n.terrCap = this.owned(n.id).reduce((s, t) => s + (t.home === n.id ? t.gdp * 0.02 : 4 + t.gdp * 0.04), 0); }
   power(units, filter) {
     let p = 0; for (const k of UNIT_KEYS) if (!filter || filter(UNITS[k])) p += (units[k] || 0) * UNITS[k].pow; return p;
   }
@@ -159,7 +171,7 @@ export class Game {
     this.touchWar(n, dn);
     dn.hostile.set(nid, (dn.hostile.get(nid) || 0) + 1);
     const verb = { land: '지상군을 진격시켰습니다', sea: '상륙 함대를 보냈습니다', air: '공습을 개시했습니다', missile: '미사일을 발사했습니다' }[kind];
-    this.log(`${n.flag} ${josa(n.name, '이가')} ${T.name}${T.home !== dn.id || T.owner !== T.a2 ? `(${dn.name})` : ''}에 ${verb}`, dn.isPlayer ? 'danger' : n.isPlayer ? 'mine' : '', { x: T.cx, z: T.cy });
+    this.log(`${n.flag} ${josa(n.name, '이가')} ${T.name === dn.name ? T.name : `${T.name}(${dn.name})`}에 ${verb}`, dn.isPlayer ? 'danger' : n.isPlayer ? 'mine' : '', { x: T.cx, z: T.cy });
     this.emit('launch', e);
     return e;
   }
@@ -167,7 +179,7 @@ export class Game {
   defensePower(dn, T) {
     const terrs = this.owned(dn.id);
     const total = terrs.reduce((s, t) => s + t.gdp, 0) || 1;
-    const share = terrs.length === 1 ? 1 : T.idx === dn.capital ? 0.55 : 0.1 + 0.6 * (T.gdp / total);
+    const share = terrs.length === 1 ? 1 : T.idx === dn.capital ? 0.55 : 0.2 + 0.6 * (T.gdp / total);
     const raw = this.power(dn.units, (u) => u.cls !== 'strike') * share;
     return (raw + 2) * dn.tech * dn.bal.def * 1.25;
   }

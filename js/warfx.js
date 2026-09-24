@@ -54,7 +54,7 @@ const key = (x, y) => x.toFixed(2) + ',' + y.toFixed(2);
 
 // src 영토와 tgt 영토 사이 실제 국경(공유 경계) 또는 상륙 해안선을 찾아 일정 간격 점으로 반환
 export function computeFront(world, srcIdx, tgtIdx, kind, from) {
-  const S = world.countries[srcIdx], T = world.countries[tgtIdx];
+  const S = world.provinces[srcIdx], T = world.provinces[tgtIdx];
   const segs = [];
   if (kind === 'land') {
     const set = new Set();

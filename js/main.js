@@ -38,6 +38,7 @@ controls.enableDamping = true; controls.dampingFactor = 0.08;
 controls.minDistance = 3; controls.maxDistance = 280;
 controls.maxPolarAngle = 1.2; controls.zoomToCursor = true;
 controls.screenSpacePanning = false;
+controls.autoRotate = true; controls.autoRotateSpeed = 0.35; // 시작 화면에선 지도가 천천히 회전
 
 scene.add(new THREE.HemisphereLight(0xd6e8ff, 0x273322, 1.25));
 const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
@@ -73,6 +74,8 @@ let shake = 0;
 function shakeAt(x, z, amt) { const [v] = sfxAt(x, z); shake = Math.min(1.2, shake + amt * v); }
 
 const KR = world.countries.find((c) => c.a2 === 'KR');
+// 시작 화면 배경: 나라 색으로 미리 칠해 둠
+{ const pv = new Game(world, { player: 'KR', aggr: 1, balance: {} }); for (const t of pv.territories) map.setColor(t.idx, new THREE.Color(pv.nations.get(t.owner).color).lerp(new THREE.Color(0x8c8a70), 0.22)); }
 setView(KR.cx, KR.cy, 150, false);
 
 // 화면 크기 변경·폰 회전 대응 (iOS는 회전 직후 크기가 늦게 바뀌어 여러 번 다시 잰다)
@@ -109,10 +112,11 @@ const expVis = new Map();      // 원정군 3D 그룹
 const occFlags = new Map();    // 점령지에 꽂힌 국기
 
 const landColor = (n) => new THREE.Color(n.color).lerp(new THREE.Color(0x8c8a70), 0.22);
-const tY = (idx) => LAND_H + map.meshes[idx].position.y;
-const citySize = (t) => THREE.MathUtils.clamp(Math.sqrt(t.area) / 900, 0.22, 0.9);
+const tY = (idx) => map.heightOf(idx);
+const citySize = (t) => THREE.MathUtils.clamp(Math.sqrt(world.countries[t.country].area) / 900, 0.22, 0.9);
 
 ui.showStart((opts) => {
+  controls.autoRotate = false;
   game = new Game(world, opts);
   for (const t of game.territories) map.setColor(t.idx, landColor(game.nations.get(t.owner)));
   for (const n of game.nations.values()) buildNationVis(n);
@@ -153,6 +157,7 @@ ui.showStart((opts) => {
     setAuto: (on) => { game.opts.autoPlayer = on; },
   });
   ui.setSpeed(1);
+  ui.setThumbs(renderThumbs(game.nations.get(opts.player).color));
   const me = game.nations.get(opts.player);
   const c = game.territories[me.capital];
   setView(c.cx, c.cy, 32);
@@ -461,7 +466,7 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObjects(map.meshes, false)[0];
-  select(hit ? hit.object.userData.idx : null);
+  select(hit ? map.provAt(hit) : null);
 });
 function select(i) {
   ui.select(i);
@@ -597,4 +602,30 @@ function battleCam() {
   const z = v.fl ? v.fl.front.anchor[1] : e.from.y + (e.to.y - e.from.y) * e.p;
   setView(x, z, 12);
   ui.toast(`🎥 ${A.flag} ${A.name} → ${D.flag} ${D.name} (${list.length}곳 중 ${((camIdx - 1) % list.length) + 1})`);
+}
+
+// 생산 카드용 3D 썸네일: 작은 렌더러로 유닛을 비스듬히 찍어 이미지로
+function renderThumbs(color) {
+  const out = {};
+  try {
+    const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    r.setSize(192, 138); r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight(0xdfeaff, 0x3a3020, 1.6));
+    const d = new THREE.DirectionalLight(0xfff2da, 2.6); d.position.set(3, 5, 4); sc.add(d);
+    const cam = new THREE.PerspectiveCamera(30, 192 / 138, 0.1, 50);
+    const shots = { inf: ['inf', 1.5, 0.55], tank: ['tank', 2.4, 0.3], jet: ['jet', 3.0, 0.1], ship: ['ship', 3.2, 0.25], missile: ['missile', 1.7, 0.05] };
+    for (const [k, [type, dist, h]] of Object.entries(shots)) {
+      const m = makeUnit(type, color);
+      if (type === 'missile') m.rotation.z = 0.5;
+      sc.add(m);
+      const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3());
+      cam.position.set(c.x + dist * 0.75, c.y + dist * 0.45 + h, c.z + dist * 0.8); cam.lookAt(c);
+      r.render(sc, cam);
+      out[k] = r.domElement.toDataURL('image/png');
+      sc.remove(m);
+    }
+    r.dispose(); r.forceContextLoss?.();
+  } catch (err) { console.warn('썸네일 생성 실패', err); }
+  return out;
 }

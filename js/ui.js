@@ -57,9 +57,9 @@ export class UI {
     const bp = $('#build-list'); bp.innerHTML = '';
     for (const k of UNIT_KEYS) {
       const u = UNITS[k];
-      const row = h(`<div class="unit-row" data-k="${k}">
-        <div class="u-ico">${u.icon}</div>
-        <div class="u-info"><b>${u.name}</b><small>💰${u.cost} · 전력 ${u.pow}</small></div>
+      const row = h(`<div class="unit-row" data-k="${k}" title="${u.name} — 비용 ${u.cost}, 전력 ${u.pow}">
+        <img class="u-img" alt="">
+        <div class="u-info"><b>${u.name}</b><small>💰${u.cost} · ⚔${u.pow}</small></div>
         <div class="u-cnt">0</div>
         <button class="b1">+1</button><button class="b10">+10</button></div>`);
       row.querySelector('.b1').onclick = () => this.buy(k, 1);
@@ -93,6 +93,9 @@ export class UI {
     $('#snd-mute').onchange = (e) => { sd.setPref('muted', !e.target.checked); icon(); };
     document.addEventListener('pointerdown', (e) => { if (!pop.hidden && !pop.contains(e.target) && e.target !== btn) pop.hidden = true; });
   }
+
+  // 3D 모델 썸네일을 생산 카드에
+  setThumbs(map) { document.querySelectorAll('.unit-row').forEach((r) => { const src = map[r.dataset.k]; if (src) r.querySelector('.u-img').src = src; }); }
 
   buy(k, q) {
     const n = this.game.buy(this.me.id, k, q);
@@ -144,19 +147,24 @@ export class UI {
     const key = `${this.sel}|${T.owner}`;
     if (full || this.infoKey !== key) {
       this.infoKey = key;
-      $('#info-title').innerHTML = `<span class="fl">${flagOf(T.a2)}</span>${T.name}`;
-      $('#info-sub').textContent = occupied ? `${O.flag} ${O.name} 점령지 (원래 ${homeN.name})` : T.sov ? `${O.flag} ${O.name} 영토` : O.id === me.id ? '우리나라' : '독립국';
+      $('#info').style.setProperty('--c', O.color);
+      $('#info-flag').textContent = O.flag;
+      $('#info-title').textContent = T.name;
+      const role = T.idx === O.capital ? ' · 수도' : '';
+      $('#info-sub').textContent = occupied ? `${O.name} 점령지 · 원래 ${homeN.name}${role}` : `${T.cname}${T.sov ? ` (${O.name} 속령)` : ''}${role}${O.id === me.id ? ' · 우리 영토' : ''}`;
       const atk = $('#attack'); atk.hidden = O.id === me.id || !me.alive;
       $('#info-bal').onclick = () => this.openBalance(O.id);
       if (!atk.hidden) this.renderAttack();
     }
     $('#info-stats').innerHTML = `
-      <div><span>국가</span><b>${O.flag} ${O.name}</b></div>
-      <div><span>종합 전투력</span><b>${fmt(pow)}</b></div>
+      <div><span>소속 국가</span><b style="font-family:var(--body);font-size:14px">${O.flag} ${O.name}</b></div>
+      <div><span>이 지방 방어력</span><b>${fmt(g.defensePower(O, T))}</b></div>
+      <div><span>국가 전투력</span><b>${fmt(pow)}</b></div>
       <div><span>기술 수준</span><b>${O.tech.toFixed(2)}</b></div>
-      <div><span>수입</span><b>+${g.income(O).toFixed(1)}/일</b></div>
-      <div><span>영토</span><b>${g.owned(O.id).length}곳</b></div>
-      <div><span>이 지역 방어력</span><b>${fmt(g.defensePower(O, T))}</b></div>
+      <div><span>국가 수입</span><b>+${g.income(O).toFixed(1)}<small style="color:var(--muted)"> /일</small></b></div>
+      <div><span>보유 지방</span><b>${g.owned(O.id).length}</b></div>
+      <div><span>이 지방 경제</span><b>${T.gdp.toFixed(0)}</b></div>
+      <div><span>면적</span><b>${fmt(T.area)}<small style="color:var(--muted)"> km²</small></b></div>
       <div class="units-mini">${UNIT_KEYS.map((k) => `<span>${UNITS[k].icon}${Math.floor(O.units[k])}</span>`).join('')}</div>`;
     if (!$('#attack').hidden) this.updateAttack();
   }
@@ -164,6 +172,7 @@ export class UI {
   renderAttack() {
     const a = $('#attack');
     a.innerHTML = `
+      <div class="sec-title">작전 명령</div>
       <div class="frac"><span>투입 병력</span><input type="range" min="0.2" max="1" step="0.05" value="${this.frac}" id="frac"><b id="frac-v">${Math.round(this.frac * 100)}%</b></div>
       <div class="atk-grid">
         <button data-kind="land"><i>🛡️</i>지상 진격<small></small></button>
@@ -197,7 +206,8 @@ export class UI {
     const def = g.defensePower(O, T);
     const r = my / (def + 0.01);
     const [txt, cls] = r > 2 ? ['압도적 우세', 'good'] : r > 1.3 ? ['우세', 'good'] : r > 0.9 ? ['박빙', 'mid'] : ['열세 — 병력을 늘리세요', 'bad'];
-    $('#odds').innerHTML = `지상 공격 예상: <b class="${cls}">${txt}</b> <small>(우리 ${fmt(my)} : 방어 ${fmt(def)})</small>`;
+    const pos = Math.max(3, Math.min(97, 50 + Math.log2(Math.max(0.01, r)) * 22));
+    $('#odds').innerHTML = `지상 공격 예상 <b class="${cls}">${txt}</b> <small>우리 ${fmt(my)} : 방어 ${fmt(def)}</small><div class="gauge"><i style="left:${pos}%"></i></div>`;
   }
 
   // ---------- 뉴스 ----------

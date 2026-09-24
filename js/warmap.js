@@ -34,7 +34,7 @@ export class WarMap {
   }
 
   vset(i) {
-    if (!this.vsets.has(i)) { const s = new Set(); for (const r of this.world.countries[i].rings) for (let k = 0; k < r.length; k += 2) s.add(key(r[k], r[k + 1])); this.vsets.set(i, s); }
+    if (!this.vsets.has(i)) { const s = new Set(); for (const r of this.world.provinces[i].rings) for (let k = 0; k < r.length; k += 2) s.add(key(r[k], r[k + 1])); this.vsets.set(i, s); }
     return this.vsets.get(i);
   }
   // 두 영토가 실제로 맞닿은 국경 선분 (캐시)
@@ -42,7 +42,7 @@ export class WarMap {
     const k = i < j ? i + '|' + j : j + '|' + i;
     if (this.shared.has(k)) return this.shared.get(k);
     const set = this.vset(i), segs = [];
-    for (const r of this.world.countries[j].rings) for (let q = 0; q < r.length; q += 2) {
+    for (const r of this.world.provinces[j].rings) for (let q = 0; q < r.length; q += 2) {
       const w = (q + 2) % r.length;
       if (set.has(key(r[q], r[q + 1])) && set.has(key(r[w], r[w + 1]))) segs.push([r[q], r[q + 1], r[w], r[w + 1]]);
     }
@@ -139,7 +139,7 @@ export class WarMap {
     while (q.length) { const i = q.pop(); for (const j of T[i].land) if (!seen.has(j) && T[j].owner === n.id) { seen.add(j); q.push(j); } }
     // 영토 내부를 격자로 찍은 점들 (해안선 굴곡에 휘둘리지 않도록 면적 기준)
     const rings = []; let bx0 = Infinity, bz0 = Infinity, bx1 = -Infinity, bz1 = -Infinity;
-    for (const i of seen) for (const r of this.world.countries[i].rings) {
+    for (const i of seen) for (const r of this.world.provinces[i].rings) {
       let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
       for (let k = 0; k < r.length; k += 2) { a = Math.min(a, r[k]); c = Math.max(c, r[k]); b = Math.min(b, r[k + 1]); d = Math.max(d, r[k + 1]); }
       rings.push({ r, a, b, c, d }); bx0 = Math.min(bx0, a); bz0 = Math.min(bz0, b); bx1 = Math.max(bx1, c); bz1 = Math.max(bz1, d);

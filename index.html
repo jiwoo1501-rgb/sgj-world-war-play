@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="세계정복">
 <meta name="theme-color" content="#061019">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
@@ -24,8 +24,11 @@
 <!-- 시작 화면 -->
 <section id="start" class="modal" hidden>
   <div class="start-card">
-    <h1>세계정복 <span>3D</span></h1>
-    <p class="lead">실제 국경 위에서 벌이는 실시간 국가 전쟁. 나라를 고르고 세계 GDP의 60%를 장악하세요. 🔊 소리가 나옵니다.</p>
+    <div class="brand">
+      <small>WORLD CONQUEST · 3D GRAND STRATEGY</small>
+      <h1>세계정복</h1>
+      <p class="lead">실제 국경과 1,400여 개 지방 위에서 벌이는 실시간 국가 전쟁.<br>나라를 골라 세계 GDP의 60%를 장악하십시오. <span class="snd-note">🔊 소리 있음</span></p>
+    </div>
     <label class="field-label">플레이할 나라</label>
     <input id="nation-search" placeholder="나라 이름 검색" autocomplete="off">
     <div id="nation-list"></div>
@@ -48,26 +51,34 @@
 <!-- HUD -->
 <div id="hud" hidden>
   <header id="top">
-    <div class="me"><span id="me-flag" class="fl"></span><b id="me-name"></b></div>
-    <div class="stat" title="자금"><i>💰</i><b id="gold">0</b><small id="income"></small></div>
-    <div class="stat" title="전투력 / 병력 한도"><i>⚔️</i><b id="power">0</b><small>/ <span id="cap"></span></small></div>
-    <div class="stat" title="보유 영토"><i>🗺️</i><b id="terr">0</b></div>
-    <div class="stat share" title="세계 GDP 점유율 (60% 달성 시 승리)"><i>🌐</i><b id="share">0%</b><div class="bar"><div id="share-bar"></div></div></div>
-    <div class="stat" title="생존 국가"><i>🏳️</i><b id="alive">0</b></div>
+    <div class="emblem"><span id="me-flag"></span></div>
+    <div class="me-block"><b id="me-name"></b><small>최고사령부</small></div>
+    <div class="caps">
+      <div class="cap gold" title="국고 (일일 수입)"><i>💰</i><div><b id="gold">0</b><small id="income"></small></div></div>
+      <div class="cap" title="전투력 / 병력 한도"><i>⚔️</i><div><b id="power">0</b><small>한도 <span id="cap"></span></small></div></div>
+      <div class="cap" title="보유 지방 수"><i>🗺️</i><div><b id="terr">0</b><small>지방</small></div></div>
+      <div class="cap" title="생존 국가 수"><i>🏳️</i><div><b id="alive">0</b><small>생존국</small></div></div>
+    </div>
+    <div class="conquest" title="세계 GDP 점유율 — 60%를 넘으면 승리">
+      <div class="cq-top"><span>세계 장악</span><b id="share">0%</b><em>/ 60%</em></div>
+      <div class="bar"><div id="share-bar"></div></div>
+    </div>
     <div class="spacer"></div>
-    <div class="date" id="date"></div>
+    <div class="clock"><small>작전일</small><b id="date"></b></div>
     <div class="speed">
-      <button data-speed="0" title="일시정지 (Space)">⏸</button>
+      <button data-speed="0" title="일시정지 (Space)">❚❚</button>
       <button data-speed="1" title="보통 (1)">1×</button>
       <button data-speed="2" title="빠름 (2)">2×</button>
       <button data-speed="4" title="매우 빠름 (3)">4×</button>
     </div>
-    <button id="auto-btn" class="icon" title="자동 운영 (AI가 우리나라를 대신 운영)">🤖</button>
-    <button id="cam-btn" class="icon" title="전장 관전 (누를 때마다 다음 전투)">🎥</button>
-    <button id="snd-btn" class="icon" title="소리 설정">🔊</button>
-    <button id="home-btn" class="icon" title="우리 수도로">🏠</button>
-    <button id="bal-btn" class="icon" title="밸런스 조정">⚖️</button>
-    <button id="help-btn" class="icon" title="조작법">❔</button>
+    <div class="tools">
+      <button id="auto-btn" class="icon" title="자동 운영 (AI가 우리나라를 대신 운영)">🤖</button>
+      <button id="cam-btn" class="icon" title="전장 관전 (누를 때마다 다음 전투)">🎥</button>
+      <button id="snd-btn" class="icon" title="소리 설정">🔊</button>
+      <button id="home-btn" class="icon" title="우리 수도로">🏠</button>
+      <button id="bal-btn" class="icon" title="밸런스 조정">⚖️</button>
+      <button id="help-btn" class="icon" title="조작법">❔</button>
+    </div>
   </header>
 
   <div id="snd-pop" class="panel" hidden>
@@ -82,16 +93,18 @@
   </aside>
 
   <aside id="info" class="panel" hidden>
-    <button id="info-close" class="x">✕</button>
-    <h2 id="info-title"></h2>
-    <div id="info-sub"></div>
+    <div class="info-head">
+      <span id="info-flag"></span>
+      <div class="ih-text"><h2 id="info-title"></h2><div id="info-sub"></div></div>
+      <button id="info-close" class="x" title="닫기">✕</button>
+    </div>
     <div id="info-stats"></div>
     <div id="attack"></div>
     <button id="info-bal" class="ghost small">⚖️ 이 나라 밸런스 조정</button>
   </aside>
 
   <aside id="log" class="panel">
-    <button id="log-toggle">📰 뉴스</button>
+    <button id="log-toggle"><span class="dot"></span>전황 보고</button>
     <ul id="log-list"></ul>
   </aside>
 </div>
@@ -157,7 +170,7 @@
   </div>
 </section>
 
-<div id="loading">지도를 불러오는 중…</div>
+<div id="loading"><div class="ld-title">세계정복</div><div class="ld-sub">지도와 지방 데이터를 불러오는 중…</div><div class="ld-bar"><i></i></div></div>
 <script type="module">
   import('./js/main.js').then(() => document.getElementById('loading').remove())
     .catch((e) => { document.getElementById('loading').textContent = '불러오기 실패: ' + e.message; console.error(e); });
