@@ -141,6 +141,11 @@ tr.focus { background: rgba(61,139,255,0.15); }
 .bal-foot { display: flex; gap: 8px; margin-top: 10px; }
 .file { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 
+#snd-pop { top: 56px; right: 12px; z-index: 20; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; width: 230px; font-size: 13px; }
+#snd-pop label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
+#snd-pop label.sw { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+#snd-pop input[type=range] { accent-color: var(--accent); }
+
 /* 좁은 화면(폰) */
 @media (max-width: 760px) {
   #top { gap: 8px; padding: 6px 8px; font-size: 13px; }
@@ -163,4 +168,5 @@ tr.focus { background: rgba(61,139,255,0.15); }
   #log-toggle { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
   #info:not([hidden]) ~ #log { display: none; }
   #toasts { top: 96px; }
+  #snd-pop { top: 96px; right: 8px; }
 }

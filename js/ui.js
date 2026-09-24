@@ -68,14 +68,28 @@ export class UI {
     $('#bal-btn').onclick = () => this.openBalance();
     $('#home-btn').onclick = () => api.flyHome();
     $('#log-toggle').onclick = () => $('#log').classList.toggle('open');
+    this.bindSound();
     $('#help-btn').onclick = () => { $('#help').hidden = !$('#help').hidden; };
     $('#help').onclick = () => { $('#help').hidden = true; };
     $('#info-close').onclick = () => api.select(null);
     this.refresh();
   }
 
+  bindSound() {
+    const sd = this.sound, pop = $('#snd-pop'), btn = $('#snd-btn');
+    const icon = () => { btn.textContent = sd.pref.muted ? '🔇' : '🔊'; };
+    icon();
+    btn.onclick = (e) => { e.stopPropagation(); pop.hidden = !pop.hidden; };
+    $('#snd-music').value = sd.pref.music; $('#snd-sfx').value = sd.pref.sfx; $('#snd-mute').checked = !sd.pref.muted;
+    $('#snd-music').oninput = (e) => sd.setPref('music', +e.target.value);
+    $('#snd-sfx').oninput = (e) => sd.setPref('sfx', +e.target.value);
+    $('#snd-mute').onchange = (e) => { sd.setPref('muted', !e.target.checked); icon(); };
+    document.addEventListener('pointerdown', (e) => { if (!pop.hidden && !pop.contains(e.target) && e.target !== btn) pop.hidden = true; });
+  }
+
   buy(k, q) {
     const n = this.game.buy(this.me.id, k, q);
+    if (n) this.sound?.buy(); else this.sound?.error();
     if (!n) {
       const u = UNITS[k];
       const why = k === 'ship' && !this.me.coastal ? '바다가 없어 군함을 만들 수 없습니다' : this.me.gold < u.cost ? '자금이 부족합니다' : '병력 한도에 도달했습니다 (영토를 늘리거나 밸런스에서 병력 배율을 올리세요)';
@@ -155,7 +169,7 @@ export class UI {
     a.querySelectorAll('[data-kind]').forEach((b) => {
       b.onclick = () => {
         const e = this.game.launch(this.me.id, this.sel, b.dataset.kind, this.frac);
-        if (!e) this.toast('출동할 수 없습니다'); else this.refresh();
+        if (!e) { this.toast('출동할 수 없습니다'); this.sound?.error(); } else this.refresh();
       };
     });
   }

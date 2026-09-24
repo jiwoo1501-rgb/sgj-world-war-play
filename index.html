@@ -25,7 +25,7 @@
 <section id="start" class="modal" hidden>
   <div class="start-card">
     <h1>세계정복 <span>3D</span></h1>
-    <p class="lead">실제 국경 위에서 벌이는 실시간 국가 전쟁. 나라를 고르고 세계 GDP의 60%를 장악하세요.</p>
+    <p class="lead">실제 국경 위에서 벌이는 실시간 국가 전쟁. 나라를 고르고 세계 GDP의 60%를 장악하세요. 🔊 소리가 나옵니다.</p>
     <label class="field-label">플레이할 나라</label>
     <input id="nation-search" placeholder="나라 이름 검색" autocomplete="off">
     <div id="nation-list"></div>
@@ -61,10 +61,17 @@
       <button data-speed="2" title="빠름 (2)">2×</button>
       <button data-speed="4" title="매우 빠름 (3)">4×</button>
     </div>
+    <button id="snd-btn" class="icon" title="소리 설정">🔊</button>
     <button id="home-btn" class="icon" title="우리 수도로">🏠</button>
     <button id="bal-btn" class="icon" title="밸런스 조정">⚖️</button>
     <button id="help-btn" class="icon" title="조작법">❔</button>
   </header>
+
+  <div id="snd-pop" class="panel" hidden>
+    <label class="sw"><input type="checkbox" id="snd-mute"> 소리 켜기</label>
+    <label>🎵 배경음악 <input type="range" id="snd-music" min="0" max="1" step="0.05"></label>
+    <label>💥 효과음 <input type="range" id="snd-sfx" min="0" max="1" step="0.05"></label>
+  </div>
 
   <aside id="build" class="panel">
     <h3>군수 생산</h3>

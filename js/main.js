@@ -6,6 +6,7 @@ import { WorldMap, LAND_H } from './map.js';
 import { makeUnit, makeFlag, flagTime } from './models.js';
 import { FX } from './fx.js';
 import { UI } from './ui.js';
+import { Sound } from './audio.js';
 
 const U = 0.42; // 유닛 크기 배율(지도 단위)
 const world = await fetch('data/world.json').then((r) => r.json());
@@ -46,6 +47,27 @@ scene.add(sun, sun.target);
 const map = new WorldMap(scene, world);
 const fx = new FX(scene);
 const ui = new UI(world);
+const sound = new Sound();
+ui.sound = sound;
+// 브라우저 정책상 첫 터치/클릭 때 소리를 켠다
+addEventListener('pointerdown', () => sound.unlock(), true);
+addEventListener('keydown', () => sound.unlock(), true);
+addEventListener('click', (e) => { if (e.target.closest?.('button')) sound.click(); }, true);
+
+// 화면 위치 기준 소리 크기·좌우
+const tmpS = new THREE.Vector3();
+function sfxAt(x, z, always = false) {
+  const camD = camera.position.distanceTo(controls.target);
+  const d = Math.hypot(x - controls.target.x, z - controls.target.z);
+  const range = Math.max(14, camD * 0.9);
+  let vol = Math.pow(Math.max(0, 1 - d / range), 1.5) * THREE.MathUtils.clamp(35 / camD, 0.3, 1);
+  if (always) vol = Math.max(vol, 0.45);
+  tmpS.set(x, 0.2, z).project(camera);
+  return [vol, THREE.MathUtils.clamp(tmpS.x, -1, 1) * 0.8];
+}
+// 화면 흔들림
+let shake = 0;
+function shakeAt(x, z, amt) { const [v] = sfxAt(x, z); shake = Math.min(1.2, shake + amt * v); }
 
 const KR = world.countries.find((c) => c.a2 === 'KR');
 setView(KR.cx, KR.cy, 150, false);
@@ -78,14 +100,27 @@ ui.showStart((opts) => {
   game = new Game(world, opts);
   for (const t of game.territories) map.setColor(t.idx, landColor(game.nations.get(t.owner)));
   for (const n of game.nations.values()) buildNationVis(n);
-  game.on('log', (l) => ui.log(l));
-  game.on('launch', (e) => buildExp(e));
+  game.on('log', (l) => { ui.log(l); if (l.kind === 'danger' && /진격|상륙|공습|발사/.test(l.msg)) sound.alarm(); });
+  game.on('launch', (e) => {
+    buildExp(e);
+    const mine = e.owner === ui.me.id || e.defender === ui.me.id;
+    const [v, p] = sfxAt(e.from.x, e.from.y, e.owner === ui.me.id);
+    const vol = mine ? Math.max(v, 0.35) : v;
+    ({ land: () => sound.march(vol, p), sea: () => sound.horn(vol, p), air: () => sound.jet(vol, p), missile: () => sound.missile(vol, p) })[e.kind]();
+  });
   game.on('end', (e) => removeExp(e));
   game.on('capture', onCapture);
   game.on('capital', (n) => moveNationVis(n));
   game.on('eliminated', (n) => removeNationVis(n));
-  game.on('impact', ({ e, x, y, n }) => { for (let i = 0; i < Math.min(5, n); i++) setTimeout(() => fx.explosion(x + (Math.random() - 0.5) * 1.2, tY(e.target), y + (Math.random() - 0.5) * 1.2, 1.4), i * 120); });
-  game.on('over', (o) => { ui.over(o); speed = 0; });
+  game.on('impact', ({ e, x, y, n }) => {
+    const mine = e.owner === ui.me.id || e.defender === ui.me.id;
+    for (let i = 0; i < Math.min(5, n); i++) setTimeout(() => {
+      fx.explosion(x + (Math.random() - 0.5) * 1.2, tY(e.target), y + (Math.random() - 0.5) * 1.2, 1.5);
+      const [v, p] = sfxAt(x, y, mine); sound.explosion(v, p, 1.3); shakeAt(x, y, 0.6);
+    }, i * 140);
+    fx.burn(x, tY(e.target), y, 10, 1.2);
+  });
+  game.on('over', (o) => { ui.over(o); speed = 0; sound.gameOver(o.win); });
   ui.bind(game, {
     setSpeed: (s) => { speed = s; ui.setSpeed(s); },
     flyHome: () => { const c = game.territories[ui.me.capital]; setView(c.cx, c.cy, 30); },
@@ -121,9 +156,15 @@ function buildNationVis(n) {
 function moveNationVis(n) { const v = nationVis.get(n.id); const t = game.territories[n.capital]; if (v) v.g.position.set(t.cx, tY(t.idx), t.cy); }
 function removeNationVis(n) { const v = nationVis.get(n.id); if (!v) return; v.lab.element.remove(); scene.remove(v.g); nationVis.delete(n.id); }
 
-function onCapture({ t, to }) {
+function onCapture({ t, from, to }) {
   map.setColor(t.idx, landColor(to), true);
-  for (let i = 0; i < 4; i++) setTimeout(() => fx.explosion(t.cx + (Math.random() - 0.5) * 1.5, tY(t.idx), t.cy + (Math.random() - 0.5) * 1.5, 1.1), i * 150);
+  const mine = to.id === ui.me.id || from.id === ui.me.id;
+  for (let i = 0; i < 4; i++) setTimeout(() => {
+    fx.explosion(t.cx + (Math.random() - 0.5) * 1.5, tY(t.idx), t.cy + (Math.random() - 0.5) * 1.5, 1.1);
+    const [v, p] = sfxAt(t.cx, t.cy, mine); sound.explosion(v, p, 1); shakeAt(t.cx, t.cy, 0.35);
+  }, i * 150);
+  fx.burn(t.cx, tY(t.idx), t.cy, 12, 1);
+  if (to.id === ui.me.id) sound.victory(); else if (from.id === ui.me.id) sound.defeat();
   const old = occFlags.get(t.idx);
   if (old) { scene.remove(old); occFlags.delete(t.idx); }
   if (to.id !== t.home) {
@@ -220,10 +261,24 @@ function updateExp(v, dt, time) {
     if (v.fire <= 0) {
       v.fire = 0.12 + Math.random() * 0.25;
       const m = v.members[Math.floor(Math.random() * alive)];
-      if (m) { tmpA.set(Math.cos(m.rotation.y) * 0.5, 0.25, -Math.sin(m.rotation.y) * 0.5).add(m.position); fx.muzzle(tmpA.x, tmpA.y, tmpA.z); }
       const ty = tY(e.target);
-      if (Math.random() < 0.55) fx.explosion(e.to.x + (Math.random() - 0.5) * 1.6, ty, e.to.y + (Math.random() - 0.5) * 1.6, 0.45 + Math.random() * 0.4);
+      const mine = e.owner === ui.me.id || e.defender === ui.me.id;
+      const [vol, pan] = sfxAt(cx, cz, mine && camera.position.distanceTo(controls.target) < 60);
+      if (m) {
+        tmpA.set(Math.cos(m.rotation.y) * 0.5, m.userData.type === 'jet' ? 0 : 0.25, -Math.sin(m.rotation.y) * 0.5).add(m.position);
+        fx.muzzle(tmpA.x, tmpA.y, tmpA.z);
+        for (let k = 0; k < 3; k++) fx.tracer(tmpA.x, tmpA.y, tmpA.z, e.to.x + (Math.random() - 0.5) * 1.4, ty + 0.2, e.to.y + (Math.random() - 0.5) * 1.4);
+        // 방어군의 응사
+        fx.tracer(e.to.x + (Math.random() - 0.5), ty + 0.2, e.to.y + (Math.random() - 0.5), m.position.x, m.position.y + 0.15, m.position.z);
+        if (m.userData.type === 'tank' || m.userData.type === 'ship') sound.cannon(vol * 0.8, pan); else sound.gunfire(vol * 0.7, pan);
+      }
+      if (Math.random() < 0.55) {
+        const sz = 0.45 + Math.random() * 0.5;
+        fx.explosion(e.to.x + (Math.random() - 0.5) * 1.6, ty, e.to.y + (Math.random() - 0.5) * 1.6, sz);
+        sound.explosion(vol * 0.65, pan, sz); if (mine) shakeAt(e.to.x, e.to.y, 0.12);
+      }
       if (Math.random() < 0.3) fx.explosion(cx + (Math.random() - 0.5) * 1.2, 0.12, cz + (Math.random() - 0.5) * 1.2, 0.35);
+      if (Math.random() < 0.08) fx.burn(e.to.x + (Math.random() - 0.5) * 1.5, ty, e.to.y + (Math.random() - 0.5) * 1.5, 4, 0.6);
     }
   }
 }
@@ -255,7 +310,7 @@ addEventListener('keydown', (e) => {
 
 // ---------- 루프 ----------
 const clock = new THREE.Clock();
-let uiT = 0, labT = 0;
+let uiT = 0, labT = 0, musT = 0;
 renderer.setAnimationLoop(() => {
   const dt = Math.min(0.05, clock.getDelta());
   const time = clock.elapsedTime;
@@ -282,8 +337,17 @@ renderer.setAnimationLoop(() => {
     uiT -= dt; if (uiT <= 0) { uiT = 0.25; ui.refresh(); }
     labT -= dt; if (labT <= 0) { labT = 0.3; updateLabels(camD); }
   }
+  if (game) { musT -= dt; if (musT <= 0) { musT = 0.5; updateMusic(); } }
+  let saved = null;
+  if (shake > 0.01) {
+    saved = camera.position.clone();
+    const a = shake * shake * 0.35 * Math.min(1, camD / 20);
+    camera.position.add(new THREE.Vector3((Math.random() - 0.5) * a, (Math.random() - 0.5) * a, (Math.random() - 0.5) * a));
+    shake *= Math.pow(0.02, dt);
+  }
   renderer.render(scene, camera);
   labels.render(scene, camera);
+  if (saved) camera.position.copy(saved);
 });
 
 function updateLabels(camD) {
@@ -296,4 +360,14 @@ function updateLabels(camD) {
     v.lab.visible = show;
     v.gar.scale.setScalar(THREE.MathUtils.clamp(0.6 + Math.log10(pw + 1) * 0.28, 0.6, 1.8));
   }
+}
+
+// 전투 강도에 따라 배경음악이 달라진다: 평시 → 긴장 → 전면전
+function updateMusic() {
+  let mine = 0, near = 0;
+  for (const e of game.expeditions) {
+    if (e.owner === ui.me.id || e.defender === ui.me.id) mine += e.state === 'battle' ? 1 : 0.5;
+    if (e.state === 'battle' && sfxAt(e.to.x, e.to.y)[0] > 0.2) near++;
+  }
+  sound.setIntensity(game.over ? 0 : 0.2 + Math.min(3, mine) * 0.22 + Math.min(4, near) * 0.06);
 }

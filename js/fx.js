@@ -31,7 +31,38 @@ export class FX {
     // 조명 개수가 바뀌면 셰이더가 다시 컴파일되므로 고정 풀을 돌려쓴다
     this.lights = Array.from({ length: 4 }, () => { const L = new THREE.PointLight(0xffa040, 0, 6, 2); scene.add(L); return { L, t: 0, max: 1, I: 0 }; });
     this.li = 0;
+    // 충격파 고리
+    this.rings = Array.from({ length: 14 }, () => {
+      const m = new THREE.Mesh(new THREE.RingGeometry(0.85, 1, 48), new THREE.MeshBasicMaterial({ color: 0xffc27a, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+      m.rotation.x = -Math.PI / 2; m.visible = false; m.renderOrder = 4; scene.add(m);
+      return { m, t: 0, max: 1, s: 1 };
+    });
+    this.ri = 0;
+    // 예광탄
+    this.TR = 300; this.tri = 0;
+    this.trPos = new Float32Array(this.TR * 6); this.trCol = new Float32Array(this.TR * 6); this.trLife = new Float32Array(this.TR);
+    const tg = new THREE.BufferGeometry();
+    tg.setAttribute('position', new THREE.BufferAttribute(this.trPos, 3).setUsage(THREE.DynamicDrawUsage));
+    tg.setAttribute('color', new THREE.BufferAttribute(this.trCol, 3).setUsage(THREE.DynamicDrawUsage));
+    this.tracers = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.tracers.frustumCulled = false; this.tracers.renderOrder = 5; scene.add(this.tracers);
+    this.burns = [];
   }
+
+  shockwave(x, y, z, s = 1) {
+    const r = this.rings[this.ri]; this.ri = (this.ri + 1) % this.rings.length;
+    r.m.position.set(x, y + 0.05, z); r.t = 0; r.max = 0.7; r.s = s; r.m.visible = true;
+  }
+  tracer(x1, y1, z1, x2, y2, z2) {
+    const i = this.tri; this.tri = (this.tri + 1) % this.TR;
+    // 목표까지 선 전체가 아니라 날아가는 짧은 탄 궤적
+    const k = 0.25 + Math.random() * 0.5;
+    const ax = x1 + (x2 - x1) * k, ay = y1 + (y2 - y1) * k, az = z1 + (z2 - z1) * k;
+    const bx = x1 + (x2 - x1) * (k + 0.18), by = y1 + (y2 - y1) * (k + 0.18), bz = z1 + (z2 - z1) * (k + 0.18);
+    this.trPos.set([ax, ay, az, bx, by, bz], i * 6);
+    this.trLife[i] = 0.12;
+  }
+  burn(x, y, z, dur = 8, s = 1) { this.burns.push({ x, y, z, t: dur, s }); if (this.burns.length > 40) this.burns.shift(); }
 
   emit(kind, x, y, z, vx, vy, vz, life, size, grow = 0) {
     const i = this.i; this.i = (this.i + 1) % N;
@@ -53,6 +84,8 @@ export class FX {
       const a = Math.random() * 6.283; const v = 2 + Math.random() * 2;
       this.emit(3, x, y + 0.1, z, Math.cos(a) * v, 2 + Math.random() * 2, Math.sin(a) * v, 0.8, 0.08);
     }
+    this.emit(1, x, y + 0.2, z, 0, 0.4, 0, 0.14, 1.6 * s); // 섬광 코어
+    if (s >= 0.8) this.shockwave(x, y, z, s);
     const fl = this.lights[this.li]; this.li = (this.li + 1) % this.lights.length;
     fl.L.position.set(x, y + 0.6, z); fl.L.distance = 6 * s; fl.t = fl.max = 0.35; fl.I = 30 * s;
   }
@@ -91,6 +124,24 @@ export class FX {
     for (let i = 0; i < N; i++) if (this.kind[i] === 1 || this.kind[i] === 3) this.col[i * 4 + 3] = 0;
     this.geo.attributes.position.needsUpdate = this.geo.attributes.color.needsUpdate = this.geo.attributes.size.needsUpdate = true;
     const f = this.fireGeo.attributes; f.position.needsUpdate = f.color.needsUpdate = f.size.needsUpdate = true;
+    for (const r of this.rings) {
+      if (!r.m.visible) continue;
+      r.t += dt; const k = r.t / r.max;
+      if (k >= 1) { r.m.visible = false; continue; }
+      r.m.scale.setScalar(0.2 + k * 3.2 * r.s); r.m.material.opacity = (1 - k) * 0.8;
+    }
+    for (let i = 0; i < this.TR; i++) {
+      const l = this.trLife[i] = Math.max(0, this.trLife[i] - dt);
+      const b = l / 0.12;
+      this.trCol[i * 6] = this.trCol[i * 6 + 3] = b; this.trCol[i * 6 + 1] = this.trCol[i * 6 + 4] = b * 0.85; this.trCol[i * 6 + 2] = this.trCol[i * 6 + 5] = b * 0.4;
+    }
+    this.tracers.geometry.attributes.position.needsUpdate = this.tracers.geometry.attributes.color.needsUpdate = true;
+    this.burns = this.burns.filter((b) => {
+      b.t -= dt;
+      if (Math.random() < 0.5) this.emit(2, b.x + (Math.random() - 0.5) * 0.3 * b.s, b.y + 0.1, b.z + (Math.random() - 0.5) * 0.3 * b.s, 0.05, 0.6 + Math.random() * 0.4, 0, 2.5, 0.25 * b.s, 0.5 * b.s);
+      if (Math.random() < 0.4) this.emit(1, b.x + (Math.random() - 0.5) * 0.25 * b.s, b.y + 0.1, b.z + (Math.random() - 0.5) * 0.25 * b.s, 0, 0.5, 0, 0.3, 0.3 * b.s);
+      return b.t > 0;
+    });
     for (const fl of this.lights) { fl.t = Math.max(0, fl.t - dt); fl.L.intensity = (fl.t / fl.max) * fl.I; }
   }
 }
