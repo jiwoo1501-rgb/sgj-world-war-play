@@ -3,7 +3,7 @@ import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Game, UNITS } from './game.js';
 import { WorldMap, LAND_H } from './map.js';
-import { makeUnit, makeFlag, flagTime, setNationInfo } from './models.js';
+import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm } from './models.js';
 import { FX } from './fx.js';
 import { makeArrow, computeFront, FrontLine } from './warfx.js';
 import { WarMap } from './warmap.js';
@@ -168,6 +168,7 @@ function startGame(opts, saved) {
   for (const t of game.territories) map.setColor(t.idx, landColor(game.nations.get(t.owner)));
   for (const n of game.nations.values()) if (n.alive) buildNationVis(n);
   for (const t of game.territories) if (t.owner !== t.home) placeOccFlag(t, game.nations.get(t.owner));
+  prewarm([...game.nations.keys()]);
   warMap = new WarMap(scene, world, game, { tY, makeUnit, U, fx, sound, sfxAt });
   garrisons = new Garrisons(scene, world, game, { tY, U, sharedSegs: (i, j) => warMap.sharedSegs(i, j) });
   game.on('war', () => { warMap.dirty = true; garrisons.dirty = true; });
@@ -325,7 +326,7 @@ function removeExp(e) {
   expVis.delete(e.id);
 }
 const fadingArrows = [];
-window.__sgj = { expVis, get game() { return game; } }; // 디버그용
+window.__sgj = { expVis, get game() { return game; }, get warMap() { return warMap; }, get garrisons() { return garrisons; }, get minimap() { return minimap; }, map }; // 디버그용
 function updateArrows(dt) {
   for (let i = fadingArrows.length - 1; i >= 0; i--) {
     const a = fadingArrows[i], u = a.material.uniforms;
@@ -548,9 +549,25 @@ addEventListener('keydown', (e) => {
 
 // ---------- 루프 ----------
 const clock = new THREE.Clock();
-let uiT = 0, labT = 0, musT = 0;
+let uiT = 0, labT = 0, musT = 0, labFrame = 0;
+// 느린 기기 보호: 5초 평균이 25fps 아래면 그래픽 품질을 한 단계 낮춤 (한 번만)
+let perfAcc = 0, perfN = 0, perfDone = false;
+function watchPerf(rawDt) {
+  if (perfDone || !game || document.hidden || rawDt > 0.5) return; // 탭 전환 직후의 긴 간격은 무시
+  perfAcc += rawDt; perfN++;
+  if (perfAcc < 5) return;
+  const fps = perfN / perfAcc; perfAcc = 0; perfN = 0;
+  if (fps < 25 && settings.quality !== 'low') {
+    const next = settings.quality === 'high' ? 'mid' : 'low';
+    applySettings({ quality: next });
+    ui.log({ msg: `⚙️ 화면이 느려 그래픽 품질을 '${next === 'low' ? '낮음' : '보통'}'으로 낮췄습니다 (☰ 메뉴 → 설정에서 변경)`, kind: 'info', day: game.day });
+    if (next === 'low') perfDone = true;
+  }
+}
 function frame(forceDt) {
-  const dt = forceDt ?? Math.min(0.05, clock.getDelta());
+  const rawDt = clock.getDelta();
+  const dt = forceDt ?? Math.min(0.05, rawDt);
+  if (!forceDt) watchPerf(rawDt);
   resize();
   const time = clock.elapsedTime;
   if (game && speed > 0 && !game.over) {
@@ -590,7 +607,7 @@ function frame(forceDt) {
     shake *= Math.pow(0.02, dt);
   }
   renderer.render(scene, camera);
-  labels.render(scene, camera);
+  if ((labFrame = (labFrame + 1) % 2) === 0 || forceDt) labels.render(scene, camera); // 지도 라벨(HTML)은 2프레임에 한 번
   if (saved) camera.position.copy(saved);
 }
 renderer.setAnimationLoop(() => frame());

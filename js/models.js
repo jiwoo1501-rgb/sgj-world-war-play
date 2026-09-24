@@ -621,6 +621,14 @@ export function geometry(type, nationColor, nid) {
   }
   return cache.get(key);
 }
+// 쉬는 틈에 미리 만들어 두기 (처음 등장할 때 끊기지 않게)
+export function prewarm(nids, color = '#888888') {
+  const jobs = [];
+  for (const nid of nids) for (const type of ['inf', 'tank', 'arty', 'jet', 'ship']) jobs.push([type, nid]);
+  const idle = window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 8 }), 30));
+  const run = (dl) => { while (jobs.length && dl.timeRemaining() > 3) { const [t, n] = jobs.shift(); baseGeometry(t, n); } if (jobs.length) idle(run); };
+  idle(run);
+}
 export function variantKey(type, nid) { const v = variantOf(type, nid); return v.model + '|' + v.camo; }
 
 export function makeUnit(type, nationColor, nid) {

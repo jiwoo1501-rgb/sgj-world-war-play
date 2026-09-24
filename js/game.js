@@ -102,7 +102,19 @@ export class Game {
     this.worldGdp = this.territories.reduce((s, t) => s + t.gdp, 0);
   }
 
-  owned(nid) { return this.territories.filter((t) => t.owner === nid); }
+  // 나라별 보유 지방·경제 합계를 캐시 (지방이 1,400개라 매번 훑으면 느림) — 소유가 바뀔 때만 무효화
+  own(nid) {
+    let c = this._own?.get(nid);
+    if (!c) {
+      (this._own ||= new Map());
+      const list = this.territories.filter((t) => t.owner === nid);
+      c = { list, gdp: list.reduce((s, t) => s + t.gdp, 0) };
+      this._own.set(nid, c);
+    }
+    return c;
+  }
+  owned(nid) { return this.own(nid).list; }
+  invalidateOwn(...ids) { if (!this._own) return; if (!ids.length) this._own.clear(); else for (const id of ids) this._own.delete(id); }
   cap(n) { return (n.pop * 0.8 + n.mil * 8 + 10 + (n.terrCap ?? n.gdp * 0.02)) * n.bal.troops; }
   // 영토가 늘면 병력 한도도 는다 (점령지는 GDP 비례 + 기본 15)
   recalcCap(n) { n.terrCap = this.owned(n.id).reduce((s, t) => s + (t.home === n.id ? t.gdp * 0.02 : 4 + t.gdp * 0.04), 0); }
@@ -110,11 +122,8 @@ export class Game {
     let p = 0; for (const k of UNIT_KEYS) if (!filter || filter(UNITS[k])) p += (units[k] || 0) * UNITS[k].pow; return p;
   }
   armyPow(n) { return this.power(n.units); }
-  income(n) {
-    let g = 0; for (const t of this.territories) if (t.owner === n.id) g += t.gdp;
-    return (1 + g * 0.012) * n.bal.eco;
-  }
-  gdpShare(nid) { let g = 0; for (const t of this.territories) if (t.owner === nid) g += t.gdp; return g / this.worldGdp; }
+  income(n) { return (1 + this.own(n.id).gdp * 0.012) * n.bal.eco; }
+  gdpShare(nid) { return this.own(nid).gdp / this.worldGdp; }
 
   buy(nid, key, qty = 1) {
     const n = this.nations.get(nid); const u = UNITS[key];
@@ -181,7 +190,7 @@ export class Game {
 
   defensePower(dn, T) {
     const terrs = this.owned(dn.id);
-    const total = terrs.reduce((s, t) => s + t.gdp, 0) || 1;
+    const total = this.own(dn.id).gdp || 1;
     const share = terrs.length === 1 ? 1 : T.idx === dn.capital ? 0.55 : 0.2 + 0.6 * (T.gdp / total);
     const raw = this.power(dn.units, (u) => u.cls !== 'strike') * share;
     return (raw + 2) * dn.tech * dn.bal.def * 1.25;
@@ -282,6 +291,7 @@ export class Game {
 
   capture(e, T, A, D) {
     T.owner = A.id;
+    this.invalidateOwn(A.id, D.id);
     for (const k of UNIT_KEYS) A.units[k] += e.units[k];
     e.units = { inf: 0, tank: 0, jet: 0, ship: 0, missile: 0 };
     e.state = 'done';
@@ -323,6 +333,7 @@ export class Game {
   restore(s) {
     this.t = s.t; this.day = s.day; this.peace = 0;
     s.owners.forEach((o, i) => { if (this.territories[i]) this.territories[i].owner = o; });
+    this.invalidateOwn();
     for (const [id, d] of Object.entries(s.nations)) {
       const n = this.nations.get(id); if (!n) continue;
       Object.assign(n, { gold: d.gold, units: d.units, alive: d.alive, capital: d.capital, bal: { ...DEFAULT_BAL, ...d.bal }, hostile: new Map(d.hostile), coastal: d.coastal, busy: 0 });

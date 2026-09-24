@@ -16,7 +16,7 @@ const noiseChunk = `
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f);
   return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
-float fbm(vec2 p){ float v=0.0, a=0.5; for(int i=0;i<5;i++){ v+=a*vnoise(p); p*=2.03; a*=0.5; } return v; }
+float fbm(vec2 p){ float v=0.0, a=0.5; for(int i=0;i<4;i++){ v+=a*vnoise(p); p*=2.03; a*=0.5; } return v; }
 `;
 
 export class WorldMap {
@@ -43,7 +43,7 @@ export class WorldMap {
         void main(){
           vec2 p = vP * 0.35;
           float n = fbm(p + vec2(uTime*0.05, uTime*0.03));
-          float n2 = fbm(p*2.7 - vec2(uTime*0.08, -uTime*0.04));
+          float n2 = vnoise(p*2.7 - vec2(uTime*0.08, -uTime*0.04));
           vec3 deep = vec3(0.03,0.12,0.24), shallow = vec3(0.06,0.27,0.42);
           vec3 c = mix(deep, shallow, n*0.9);
           float caust = smoothstep(0.62, 0.78, n2) * 0.18;
@@ -116,14 +116,14 @@ export class WorldMap {
           .replace('#include <color_fragment>', `#include <color_fragment>
             diffuseColor.rgb *= uProvCol[vProv];
             float t = fbm(vW.xz * 0.9);
-            float t2 = fbm(vW.xz * 4.0);
+            float t2 = vnoise(vW.xz * 4.0);
             diffuseColor.rgb *= 0.78 + 0.34 * t + 0.1 * (t2 - 0.5);
             for (int s = 0; s < 4; s++) {
               if (uOccProv[s] != vProv || uOccN[s] == 0) continue;
               float md = 1e9;
               for (int i = 0; i < 12; i++) { if (i >= uOccN[s]) break; md = min(md, distance(vW.xz, uOccPts[s * 12 + i])); }
               float adv = uOccAdv[s];
-              float edge = adv - md + (fbm(vW.xz * 1.3) - 0.5) * 0.9 * min(1.0, adv);
+              float edge = adv - md + (vnoise(vW.xz * 1.3) - 0.5) * 0.9 * min(1.0, adv);
               if (edge > 0.0) {
                 float stripe = step(0.55, fract((vW.x - vW.z) * 2.2));
                 diffuseColor.rgb = mix(diffuseColor.rgb, uOccCol[s] * (0.78 + 0.34 * t) * (1.0 - 0.18 * stripe), 0.9);

@@ -53,6 +53,29 @@ export class Garrisons {
   }
 
   // 국경 초소 계산: 주인이 다른 두 영토가 맞닿은 곳마다 양쪽에 초소
+  // 두 지방 사이 국경 초소 자리 (지형은 변하지 않으므로 쌍마다 한 번만 계산해 캐시)
+  pairPts(a, b, spacing) {
+    const key = a.idx + '|' + b.idx + '|' + spacing;
+    (this._pp ||= new Map());
+    let pts = this._pp.get(key);
+    if (pts) return pts;
+    pts = [];
+    let acc = spacing * 0.5;
+    for (const [x1, z1, x2, z2] of this.deps.sharedSegs(a.idx, b.idx)) {
+      const L = Math.hypot(x2 - x1, z2 - z1); if (!L) continue;
+      while (acc < L) {
+        const t = acc / L, x = x1 + (x2 - x1) * t, z = z1 + (z2 - z1) * t;
+        let nx = -(z2 - z1) / L, nz = (x2 - x1) / L;
+        if (nx * (b.cx - x) + nz * (b.cy - z) < 0) { nx = -nx; nz = -nz; } // n → b 쪽
+        pts.push(x, z, nx, nz);
+        acc += spacing;
+      }
+      acc -= L;
+    }
+    this._pp.set(key, pts);
+    return pts;
+  }
+  // 국경 초소: 주인이 다른 두 지방이 맞닿은 곳마다 양쪽에 초소
   rebuild() {
     const g = this.game, T = g.territories, posts = [];
     for (const a of T) for (const j of a.land) {
@@ -60,19 +83,11 @@ export class Garrisons {
       const b = T[j];
       if (a.owner === b.owner) continue;
       const war = g.atWar(a.owner, b.owner);
-      const spacing = war ? 1.1 : 2.2;
-      let acc = spacing * 0.5;
-      for (const [x1, z1, x2, z2] of this.deps.sharedSegs(a.idx, j)) {
-        const L = Math.hypot(x2 - x1, z2 - z1); if (!L) continue;
-        while (acc < L) {
-          const t = acc / L, x = x1 + (x2 - x1) * t, z = z1 + (z2 - z1) * t;
-          let nx = -(z2 - z1) / L, nz = (x2 - x1) / L;
-          if (nx * (b.cx - x) + nz * (b.cy - z) < 0) { nx = -nx; nz = -nz; } // n → b 쪽
-          posts.push({ x: x - nx * 0.45, z: z - nz * 0.45, fx: nx, fz: nz, t: a, war });   // a 쪽 초소는 b를 바라봄
-          posts.push({ x: x + nx * 0.45, z: z + nz * 0.45, fx: -nx, fz: -nz, t: b, war });
-          acc += spacing;
-        }
-        acc -= L;
+      const pts = this.pairPts(a, b, war ? 1.1 : 2.2);
+      for (let k = 0; k < pts.length; k += 4) {
+        const x = pts[k], z = pts[k + 1], nx = pts[k + 2], nz = pts[k + 3];
+        posts.push({ x: x - nx * 0.45, z: z - nz * 0.45, fx: nx, fz: nz, t: a, war });   // a 쪽 초소는 b를 바라봄
+        posts.push({ x: x + nx * 0.45, z: z + nz * 0.45, fx: -nx, fz: -nz, t: b, war });
       }
     }
     this.posts = posts;
@@ -80,7 +95,7 @@ export class Garrisons {
 
   update(dt, camD, target) {
     this.cool -= dt;
-    if (this.dirty && this.cool <= 0) { this.dirty = false; this.cool = 0.8; this.rebuild(); }
+    if (this.dirty && this.cool <= 0) { this.dirty = false; this.cool = 2; this.rebuild(); }
     this.t -= dt;
     for (const c of this.cities) c.label.visible = camD < 32 && Math.hypot(c.x - target.x, c.z - target.z) < camD * 1.2;
     if (this.t > 0) return;

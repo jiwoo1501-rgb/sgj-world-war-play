@@ -31,6 +31,10 @@ export class WarMap {
     this.nameGroup = new THREE.Group(); scene.add(this.nameGroup);
     this.garGroup = new THREE.Group(); scene.add(this.garGroup);
     for (const n of game.nations.values()) this.nameDirty.add(n.id);
+    // 지방 표본점도 쉬는 틈에 미리 계산
+    const idle = window.requestIdleCallback || ((f) => setTimeout(() => f({ timeRemaining: () => 8 }), 50));
+    let pi = 0; const run = (dl) => { while (pi < world.provinces.length && dl.timeRemaining() > 2) this.provSamples(pi++); if (pi < world.provinces.length) idle(run); };
+    idle(run);
   }
 
   vset(i) {
@@ -50,53 +54,68 @@ export class WarMap {
     return segs;
   }
 
+  // 전선 띠: 정점 버퍼를 한 번 잡아 두고 채워 쓰기 (매번 새 배열을 만들면 GC로 끊김)
+  ensureBuf(nv) {
+    if (this.cap >= nv) return;
+    this.cap = Math.max(nv, (this.cap || 0) * 2, 30000);
+    this.bPos = new Float32Array(this.cap * 3); this.bOffs = new Float32Array(this.cap * 2); this.bCol = new Float32Array(this.cap * 3); this.bEdge = new Float32Array(this.cap);
+    if (this.mesh) { this.scene.remove(this.mesh); this.mesh.geometry.dispose(); this.mesh = null; }
+  }
   rebuild() {
     const g = this.game, T = g.territories;
-    const pos = [], offs = [], col = [], edge = [];
     const fronts = [];
+    let nSeg = 0;
     for (const w of g.wars.values()) {
       const A = g.nations.get(w.a), B = g.nations.get(w.b);
       if (!A?.alive || !B?.alive) continue;
       const segs = [];
-      for (const ta of T) {
-        if (ta.owner !== w.a) continue;
-        for (const j of ta.land) {
-          if (T[j].owner !== w.b) continue;
-          for (const s of this.sharedSegs(ta.idx, j)) segs.push({ s, a: ta, b: T[j] });
-        }
+      for (const ta of g.owned(w.a)) for (const j of ta.land) {
+        if (T[j].owner !== w.b) continue;
+        for (const sg of this.sharedSegs(ta.idx, j)) segs.push({ s: sg, a: ta, b: T[j] });
       }
       if (!segs.length) continue;
-      fronts.push({ A, B, segs });
-      const ca = new THREE.Color(A.color), cb = new THREE.Color(B.color);
+      fronts.push({ A, B, segs }); nSeg += segs.length;
+    }
+    this.ensureBuf(nSeg * 12);
+    const P = this.bPos, O = this.bOffs, Cc = this.bCol, E = this.bEdge;
+    let v = 0;
+    const put = (x, y, z, ox, oz, c, e) => { P[v * 3] = x; P[v * 3 + 1] = y; P[v * 3 + 2] = z; O[v * 2] = ox; O[v * 2 + 1] = oz; Cc[v * 3] = c.r; Cc[v * 3 + 1] = c.g; Cc[v * 3 + 2] = c.b; E[v] = e; v++; };
+    const ca = new THREE.Color(), cb = new THREE.Color();
+    for (const { A, B, segs } of fronts) {
+      ca.set(A.color); cb.set(B.color);
       for (const { s: [x1, z1, x2, z2], a, b } of segs) {
         const dx = x2 - x1, dz = z2 - z1, L = Math.hypot(dx, dz) || 1;
         let nx = -dz / L, nz = dx / L;
         if (nx * (b.cx - (x1 + x2) / 2) + nz * (b.cy - (z1 + z2) / 2) < 0) { nx = -nx; nz = -nz; } // n → B 쪽
         const y = Math.max(this.deps.tY(a.idx), this.deps.tY(b.idx)) + 0.03;
-        for (const [side, c] of [[1, cb], [-1, ca]]) {
-          const ox = nx * side, oz = nz * side;
-          // 사각형 2개 삼각형: (p1,e0) (p2,e0) (p1,e1) / (p2,e0) (p2,e1) (p1,e1)
-          const v = [[x1, z1, 0, 0], [x2, z2, 0, 0], [x1, z1, ox, oz], [x2, z2, 0, 0], [x2, z2, ox, oz], [x1, z1, ox, oz]];
-          for (const [x, z, a, bb] of v) { pos.push(x, y, z); offs.push(a, bb); col.push(c.r, c.g, c.b); edge.push(a || bb ? 1 : 0); }
+        for (let side = 1; side >= -1; side -= 2) {
+          const c = side > 0 ? cb : ca, ox = nx * side, oz = nz * side;
+          put(x1, y, z1, 0, 0, c, 0); put(x2, y, z2, 0, 0, c, 0); put(x1, y, z1, ox, oz, c, 1);
+          put(x2, y, z2, 0, 0, c, 0); put(x2, y, z2, ox, oz, c, 1); put(x1, y, z1, ox, oz, c, 1);
         }
       }
     }
-    if (this.mesh) { this.scene.remove(this.mesh); this.mesh.geometry.dispose(); }
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('offs', new THREE.Float32BufferAttribute(offs, 2));
-    geo.setAttribute('col', new THREE.Float32BufferAttribute(col, 3));
-    geo.setAttribute('edge', new THREE.Float32BufferAttribute(edge, 1));
-    this.mesh = new THREE.Mesh(geo, this.mat ||= new THREE.ShaderMaterial({ vertexShader: frontVS, fragmentShader: frontFS, transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uTime: this.uTime, uWidth: this.uWidth } }));
-    this.mesh.renderOrder = 1; this.mesh.frustumCulled = false;
-    this.scene.add(this.mesh);
+    if (!this.mesh) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(P, 3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('offs', new THREE.BufferAttribute(O, 2).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('col', new THREE.BufferAttribute(Cc, 3).setUsage(THREE.DynamicDrawUsage));
+      geo.setAttribute('edge', new THREE.BufferAttribute(E, 1).setUsage(THREE.DynamicDrawUsage));
+      this.mesh = new THREE.Mesh(geo, this.mat ||= new THREE.ShaderMaterial({ vertexShader: frontVS, fragmentShader: frontFS, transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: { uTime: this.uTime, uWidth: this.uWidth } }));
+      this.mesh.renderOrder = 1; this.mesh.frustumCulled = false;
+      this.scene.add(this.mesh);
+    }
+    const ga = this.mesh.geometry.attributes;
+    for (const k of ['position', 'offs', 'col', 'edge']) { ga[k].clearUpdateRanges?.(); ga[k].addUpdateRange?.(0, v * ga[k].itemSize); ga[k].needsUpdate = true; }
+    this.mesh.geometry.setDrawRange(0, v);
     this.buildCounters(fronts);
     this.fronts = fronts;
   }
 
   // 전선을 따라 일정 간격으로 양측 부대 표식
   buildCounters(fronts) {
-    for (const c of this.counters) c.obj.element.remove(), this.scene.remove(c.obj);
+    const pool = this.counters; // 기존 표식 재사용 (DOM 생성·삭제가 가장 비쌈)
+    let used = 0;
     this.counters = []; this.cnt = new Map();
     for (const { A, B, segs } of fronts) {
       const total = segs.reduce((s, { s: q }) => s + Math.hypot(q[2] - q[0], q[3] - q[1]), 0);
@@ -114,17 +133,24 @@ export class WarMap {
         acc -= L;
       }
       for (const p of pts) for (const [N, side] of [[A, -1], [B, 1]]) {
-        const div = document.createElement('div');
-        div.className = 'counter' + (N.isPlayer ? ' me' : '');
-        div.style.setProperty('--c', N.color);
-        div.innerHTML = `<span class="cf">${N.flag}</span><b></b><i></i>`;
-        const obj = new CSS2DObject(div);
-        obj.position.set(p.x + p.nx * side * 0.55, this.deps.tY(p.b.idx) + 0.3, p.z + p.nz * side * 0.55);
-        this.scene.add(obj);
+        let c = pool[used++];
+        if (!c) {
+          const div = document.createElement('div');
+          div.innerHTML = '<span class="cf"></span><b></b><i></i>';
+          const obj = new CSS2DObject(div); this.scene.add(obj);
+          c = { obj, num: div.querySelector('b'), bar: div.querySelector('i'), cf: div.querySelector('.cf') };
+        }
+        if (c.nid !== N.id) {
+          c.nid = N.id; c.obj.element.className = 'counter' + (N.isPlayer ? ' me' : '');
+          c.obj.element.style.setProperty('--c', N.color); c.cf.textContent = N.flag;
+        }
+        c.obj.position.set(p.x + p.nx * side * 0.55, this.deps.tY(p.b.idx) + 0.3, p.z + p.nz * side * 0.55);
+        Object.assign(c, { n: N, p, side });
         this.cnt.set(N.id, (this.cnt.get(N.id) || 0) + 1);
-        this.counters.push({ obj, n: N, p, side, num: div.querySelector('b'), bar: div.querySelector('i'), share: 1 / pts.length });
+        this.counters.push(c);
       }
     }
+    for (let i = used; i < pool.length; i++) { pool[i].obj.element.remove(); this.scene.remove(pool[i].obj); }
   }
 
   // ---------- 땅 위 나라 이름 ----------
@@ -137,28 +163,9 @@ export class WarMap {
     const start = T[n.capital]; if (start.owner !== n.id) return;
     const seen = new Set([start.idx]), q = [start.idx];
     while (q.length) { const i = q.pop(); for (const j of T[i].land) if (!seen.has(j) && T[j].owner === n.id) { seen.add(j); q.push(j); } }
-    // 영토 내부를 격자로 찍은 점들 (해안선 굴곡에 휘둘리지 않도록 면적 기준)
-    const rings = []; let bx0 = Infinity, bz0 = Infinity, bx1 = -Infinity, bz1 = -Infinity;
-    for (const i of seen) for (const r of this.world.provinces[i].rings) {
-      let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
-      for (let k = 0; k < r.length; k += 2) { a = Math.min(a, r[k]); c = Math.max(c, r[k]); b = Math.min(b, r[k + 1]); d = Math.max(d, r[k + 1]); }
-      rings.push({ r, a, b, c, d }); bx0 = Math.min(bx0, a); bz0 = Math.min(bz0, b); bx1 = Math.max(bx1, c); bz1 = Math.max(bz1, d);
-    }
-    const stepG = Math.max(bx1 - bx0, bz1 - bz0) / 48;
-    const inside = (x, z) => {
-      let hit = false;
-      for (const { r, a, b, c, d } of rings) {
-        if (x < a || x > c || z < b || z > d) continue;
-        let inn = false;
-        for (let k = 0, j = r.length - 2; k < r.length; j = k, k += 2) {
-          if ((r[k + 1] > z) !== (r[j + 1] > z) && x < ((r[j] - r[k]) * (z - r[k + 1])) / (r[j + 1] - r[k + 1]) + r[k]) inn = !inn;
-        }
-        if (inn) { hit = true; break; }
-      }
-      return hit;
-    };
+    // 영토 내부의 고른 표본점 (지방마다 한 번 계산해 캐시 → 해안선 굴곡에 휘둘리지 않는 면적 기준)
     const P = [];
-    for (let x = bx0 + stepG / 2; x < bx1; x += stepG) for (let z = bz0 + stepG / 2; z < bz1; z += stepG) if (inside(x, z)) P.push(x, z);
+    for (const i of seen) { const pp = this.provSamples(i); for (let k = 0; k < pp.length; k++) P.push(pp[k]); }
     const m = P.length / 2; if (m < 6) return;
     let mx = 0, mz = 0; for (let k = 0; k < P.length; k += 2) { mx += P[k]; mz += P[k + 1]; } mx /= m; mz /= m;
     let sxx = 0, sxz = 0, szz = 0;
@@ -198,6 +205,24 @@ export class WarMap {
     mesh.userData.h = h;
     this.nameGroup.add(mesh); this.names.set(n.id, mesh);
   }
+  provSamples(i) {
+    (this._ps ||= new Map());
+    let out = this._ps.get(i);
+    if (out) return out;
+    const rings = this.world.provinces[i].rings;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const r of rings) for (let k = 0; k < r.length; k += 2) { x0 = Math.min(x0, r[k]); x1 = Math.max(x1, r[k]); z0 = Math.min(z0, r[k + 1]); z1 = Math.max(z1, r[k + 1]); }
+    const step = Math.max(0.25, Math.max(x1 - x0, z1 - z0) / 9);
+    out = [];
+    for (let x = x0 + step / 2; x < x1; x += step) for (let z = z0 + step / 2; z < z1; z += step) {
+      let hit = false;
+      for (const r of rings) { let inn = false; for (let k = 0, j = r.length - 2; k < r.length; j = k, k += 2) if ((r[k + 1] > z) !== (r[j + 1] > z) && x < ((r[j] - r[k]) * (z - r[k + 1])) / (r[j + 1] - r[k + 1]) + r[k]) inn = !inn; if (inn) { hit = true; break; } }
+      // 넓은 지방일수록 점 하나가 대표하는 면적이 크므로 가중치 삼아 여러 번 넣음
+      if (hit) { const w = Math.max(1, Math.round((step * step) / 0.5)); for (let q = 0; q < Math.min(w, 6); q++) out.push(x, z); }
+    }
+    this._ps.set(i, out);
+    return out;
+  }
   markNames(...ids) { for (const id of ids) if (id) this.nameDirty.add(id); }
 
   // ---------- 매 프레임 ----------
@@ -205,7 +230,7 @@ export class WarMap {
     this.uTime.value += dt;
     this.uWidth.value = THREE.MathUtils.clamp(camD * 0.006, 0.17, 1.4);
     this.cool -= dt;
-    if (this.dirty && this.cool <= 0) { this.dirty = false; this.cool = 0.6; this.rebuild(); }
+    if (this.dirty && this.cool <= 0) { this.dirty = false; this.cool = 2.5; this.rebuild(); }
     // 나라 이름: 멀리서 보일 때 드러남
     this.nameT -= dt;
     if (this.nameT <= 0 && this.nameDirty.size) { this.nameT = 0.4; let k = 0; for (const id of this.nameDirty) { this.buildName(this.game.nations.get(id)); this.nameDirty.delete(id); if (++k > 8) break; } }

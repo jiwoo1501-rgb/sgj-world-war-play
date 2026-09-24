@@ -44,7 +44,8 @@ export class Minimap {
     this.t -= dt;
     if (this.t > 0) return;
     this.t = 0.25;
-    if (this.dirty) { this.dirty = false; this.redraw(); }
+    this.cool = (this.cool ?? 0) - 0.25;
+    if (this.dirty && this.cool <= 0) { this.dirty = false; this.cool = 2; this.redraw(); } // 다시 그리기는 2초에 한 번까지
     const c = this.ctx; c.drawImage(this.base, 0, 0);
     // 카메라가 보는 대략의 영역
     const hw = camD * 0.55 * Math.max(1, aspect), hh = camD * 0.45;
