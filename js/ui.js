@@ -21,9 +21,55 @@ export class UI {
     this.frac = 0.6;
   }
 
+  // ---------- 메인 메뉴 ----------
+  showMenu(o) {
+    this.menuOpts = o;
+    const el = $('#menu'); el.hidden = false; $('#start').hidden = true;
+    const cont = $('#m-continue');
+    if (o.save) {
+      const n = this.nationList.find((x) => x.id === o.save.opts.player);
+      const d = new Date(2026, 0, 1); d.setDate(d.getDate() + Math.floor(o.save.day));
+      $('#m-save-info').textContent = `${n ? n.flag + ' ' + n.name : ''} · ${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} · 지방 ${o.save.owners.filter((x) => x === o.save.opts.player).length}곳`;
+      cont.disabled = false; cont.classList.add('primary-item'); $('#m-new').classList.remove('primary-item');
+    } else cont.disabled = true;
+    cont.onclick = () => { el.hidden = true; o.onContinue(); };
+    $('#m-new').onclick = () => { el.hidden = true; o.onNew(); };
+    $('#m-settings').onclick = () => this.openSettings(o);
+    $('#m-help').onclick = () => { $('#help').hidden = false; };
+  }
+
+  openSettings(o) {
+    const el = $('#settings'); el.hidden = false;
+    const st = o.getSettings();
+    $('#set-quality').value = st.quality; $('#set-ui').value = String(st.ui);
+    $('#set-quality').onchange = (e) => o.applySettings({ quality: e.target.value });
+    $('#set-ui').onchange = (e) => o.applySettings({ ui: +e.target.value });
+    const sd = this.sound;
+    if (sd) {
+      $('#set-mute').checked = !sd.pref.muted; $('#set-music').value = sd.pref.music; $('#set-sfx').value = sd.pref.sfx;
+      $('#set-mute').onchange = (e) => sd.setPref('muted', !e.target.checked);
+      $('#set-music').oninput = (e) => sd.setPref('music', +e.target.value);
+      $('#set-sfx').oninput = (e) => sd.setPref('sfx', +e.target.value);
+    }
+    $('#set-close').onclick = () => { el.hidden = true; };
+  }
+
+  togglePause(force) {
+    const el = $('#pause'); if (!this.game || this.game.over) return;
+    const open = force ?? el.hidden;
+    el.hidden = !open; this.api.pause(open);
+    if (!open) return;
+    $('#p-resume').onclick = () => this.togglePause(false);
+    $('#p-save').onclick = () => { const ok = this.api.save(); $('#p-save-info').textContent = ok ? '저장했습니다 ✓ (' + new Date().toLocaleTimeString('ko-KR') + ')' : '저장하지 못했습니다 (브라우저 저장 공간 확인)'; };
+    $('#p-settings').onclick = () => this.openSettings(this.api);
+    $('#p-help').onclick = () => { $('#help').hidden = false; };
+    $('#p-quit').onclick = () => this.api.quit();
+  }
+
   // ---------- 시작 화면 ----------
   showStart(onStart) {
     const el = $('#start'); el.hidden = false;
+    $('#start-back').onclick = () => { el.hidden = true; $('#menu').hidden = false; };
     let pick = 'KR';
     const list = $('#nation-list', el);
     const render = (q = '') => {
@@ -76,6 +122,7 @@ export class UI {
     setAuto(!!game.opts.autoPlayer, true);
     $('#log-toggle').onclick = () => $('#log').classList.toggle('open');
     this.bindSound();
+    $('#menu-btn').onclick = () => this.togglePause(true);
     $('#help-btn').onclick = () => { $('#help').hidden = !$('#help').hidden; };
     $('#help').onclick = () => { $('#help').hidden = true; };
     $('#info-close').onclick = () => api.select(null);
@@ -218,20 +265,24 @@ export class UI {
     if (at && this.api) { li.classList.add('go'); li.title = '눌러서 이동'; li.onclick = () => this.api.flyTo(at); }
     const ul = $('#log-list'); ul.prepend(li);
     while (ul.children.length > 80) ul.lastChild.remove();
-    if (kind === 'danger' || kind === 'mine') this.toast(msg, kind);
+    // 새 소식이 오면 전황 보고 버튼이 잠깐 반짝임 (화면 중앙 팝업은 쓰지 않음)
+    const tg = $('#log-toggle'); if (tg) { tg.classList.remove('new'); void tg.offsetWidth; tg.classList.add('new'); }
   }
+  // 안내·경고도 전황 보고에만 기록
   toast(msg, kind = '') {
-    const t = h(`<div class="toast ${kind}"></div>`); t.textContent = msg;
-    $('#toasts').appendChild(t);
-    setTimeout(() => t.classList.add('out'), 2600);
-    setTimeout(() => t.remove(), 3200);
+    if (!this.game) return;
+    this.log({ msg: '› ' + msg, kind: kind || 'info', day: this.game.day });
   }
-  over({ win }) {
+  over({ win, stats, day }) {
     const el = $('#over'); el.hidden = false;
-    $('#over-title').textContent = win ? '🏆 세계 정복 성공!' : '☠️ 패배';
+    $('#over-title').textContent = win ? '세계 정복 성공' : '패배';
     $('#over-sub').textContent = win ? `${josa(this.me.name, '이가')} 세계 GDP의 60%를 장악했습니다.` : `${josa(this.me.name, '이가')} 멸망했습니다.`;
-    $('#over-btn').onclick = () => location.reload();
+    const items = [['경과 일수', Math.floor(day)], ['지방 점령', stats.captured], ['지방 상실', stats.lost], ['출정 횟수', stats.battles], ['방어 성공', stats.repelled], ['멸망시킨 나라', stats.eliminated], ['생산한 병력', stats.built], ['최대 장악률', (stats.peak * 100).toFixed(1) + '%'], ['남은 지방', this.game.owned(this.me.id).length]];
+    $('#over-stats').innerHTML = items.map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+    $('#over-btn').onclick = () => this.api.newGame();
+    $('#over-menu').onclick = () => location.reload();
   }
+
 
   // ---------- 밸런스 편집기 ----------
   openBalance(focusId) {

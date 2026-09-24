@@ -3,10 +3,11 @@ import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Game, UNITS } from './game.js';
 import { WorldMap, LAND_H } from './map.js';
-import { makeUnit, makeFlag, flagTime } from './models.js';
+import { makeUnit, makeFlag, flagTime, setNationInfo } from './models.js';
 import { FX } from './fx.js';
 import { makeArrow, computeFront, FrontLine } from './warfx.js';
 import { WarMap } from './warmap.js';
+import { Minimap } from './minimap.js';
 import { Garrisons } from './garrison.js';
 import { UI } from './ui.js';
 import { Sound } from './audio.js';
@@ -73,6 +74,7 @@ function sfxAt(x, z, always = false) {
 let shake = 0;
 function shakeAt(x, z, amt) { const [v] = sfxAt(x, z); shake = Math.min(1.2, shake + amt * v); }
 
+setNationInfo(new Map(world.countries.map((c) => [c.a2, { lon: c.lon, lat: c.lat }])));
 const KR = world.countries.find((c) => c.a2 === 'KR');
 // 시작 화면 배경: 나라 색으로 미리 칠해 둠
 { const pv = new Game(world, { player: 'KR', aggr: 1, balance: {} }); for (const t of pv.territories) map.setColor(t.idx, new THREE.Color(pv.nations.get(t.owner).color).lerp(new THREE.Color(0x8c8a70), 0.22)); }
@@ -94,7 +96,7 @@ function resize() {
   const ui = phoneP ? THREE.MathUtils.clamp(w / 400, 0.82, w > 760 ? 1.5 : 1.2)
     : phoneL ? THREE.MathUtils.clamp(h / 400, 0.8, 1.1)
     : THREE.MathUtils.clamp(Math.min(w / 1250, h / 860), 0.62, 1.5);
-  document.documentElement.style.setProperty('--ui', ui.toFixed(3));
+  document.documentElement.style.setProperty('--ui', (ui * (window.__uiMult || 1)).toFixed(3));
   renderer.setSize(w, h); labels.setSize(w, h);
 }
 resize();
@@ -115,7 +117,7 @@ function setView(x, z, d, animate = true) {
 }
 
 // ---------- 게임 ----------
-let game = null, speed = 1, acc = 0, warMap = null, garrisons = null;
+let game = null, speed = 1, acc = 0, warMap = null, garrisons = null, minimap = null;
 const strikes = []; // 전투기 폭격 연출
 const nationVis = new Map();   // 나라별 수도 도시·국기·주둔군·라벨
 const expVis = new Map();      // 원정군 3D 그룹
@@ -125,11 +127,47 @@ const landColor = (n) => new THREE.Color(n.color).lerp(new THREE.Color(0x8c8a70)
 const tY = (idx) => map.heightOf(idx);
 const citySize = (t) => THREE.MathUtils.clamp(Math.sqrt(world.countries[t.country].area) / 900, 0.22, 0.9);
 
-ui.showStart((opts) => {
+// ---------- 저장 · 설정 ----------
+const SAVE_KEY = 'sgj-save-v1', SET_KEY = 'sgj-settings-v1';
+const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { return null; } };
+function saveGame() {
+  if (!game || game.over) return false;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.serialize())); return true; } catch { return false; }
+}
+setInterval(() => { if (game && !game.over && speed > 0) saveGame(); }, 30000); // 자동 저장
+let settings = { quality: 'mid', ui: 1 };
+try { settings = { ...settings, ...JSON.parse(localStorage.getItem(SET_KEY) || '{}') }; } catch {}
+function applySettings(ns) {
+  settings = { ...settings, ...ns };
+  try { localStorage.setItem(SET_KEY, JSON.stringify(settings)); } catch {}
+  const q = settings.quality;
+  renderer.setPixelRatio(q === 'low' ? 1 : Math.min(q === 'high' ? 2 : 1.5, devicePixelRatio));
+  renderer.shadowMap.enabled = q !== 'low'; sun.castShadow = q !== 'low';
+  const sz = q === 'high' ? 2048 : 1024;
+  if (sun.shadow.mapSize.x !== sz) { sun.shadow.mapSize.set(sz, sz); sun.shadow.map?.dispose(); sun.shadow.map = null; }
+  scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
+  window.__uiMult = +settings.ui || 1;
+  lastW = 0; // UI 배율 다시 계산
+}
+applySettings({});
+
+// 메인 메뉴 → 새 게임(나라 선택) 또는 이어하기
+ui.showMenu({
+  save: readSave(),
+  onNew: () => ui.showStart(startGame),
+  onContinue: () => { const s = readSave(); if (s) startGame(s.opts, s); },
+  getSettings: () => settings,
+  applySettings,
+});
+if (location.hash === '#new') { history.replaceState(null, '', location.pathname); ui.showStart(startGame); }
+
+function startGame(opts, saved) {
   controls.autoRotate = false;
   game = new Game(world, opts);
+  if (saved) game.restore(saved);
   for (const t of game.territories) map.setColor(t.idx, landColor(game.nations.get(t.owner)));
-  for (const n of game.nations.values()) buildNationVis(n);
+  for (const n of game.nations.values()) if (n.alive) buildNationVis(n);
+  for (const t of game.territories) if (t.owner !== t.home) placeOccFlag(t, game.nations.get(t.owner));
   warMap = new WarMap(scene, world, game, { tY, makeUnit, U, fx, sound, sfxAt });
   garrisons = new Garrisons(scene, world, game, { tY, U, sharedSegs: (i, j) => warMap.sharedSegs(i, j) });
   game.on('war', () => { warMap.dirty = true; garrisons.dirty = true; });
@@ -157,7 +195,9 @@ ui.showStart((opts) => {
     }, i * 140);
     fx.burn(x, tY(e.target), y, 10, 1.2);
   });
-  game.on('over', (o) => { ui.over(o); speed = 0; sound.gameOver(o.win); });
+  game.on('over', (o) => { ui.over({ ...o, stats: game.stats, day: game.day }); speed = 0; sound.gameOver(o.win); try { localStorage.removeItem(SAVE_KEY); } catch {} });
+  minimap = new Minimap(document.getElementById('minimap'), world, game, (x, z) => setView(x, z, 30));
+  game.on('capture', () => { minimap.dirty = true; });
   ui.bind(game, {
     setSpeed: (s) => { speed = s; ui.setSpeed(s); },
     flyHome: () => { const c = game.territories[ui.me.capital]; setView(c.cx, c.cy, 30); },
@@ -165,24 +205,32 @@ ui.showStart((opts) => {
     flyTo: (at) => setView(at.x, at.z, 16),
     battleCam: () => battleCam(),
     setAuto: (on) => { game.opts.autoPlayer = on; },
+    save: () => saveGame(),
+    pause: (on) => { if (on) { speedBeforePause = speed || speedBeforePause; speed = 0; } else speed = speedBeforePause || 1; ui.setSpeed(speed); },
+    getSettings: () => settings,
+    applySettings,
+    quit: () => { saveGame(); location.reload(); },
+    newGame: () => { location.hash = 'new'; location.reload(); },
   });
   ui.setSpeed(1);
-  ui.setThumbs(renderThumbs(game.nations.get(opts.player).color));
+  ui.setThumbs(renderThumbs(game.nations.get(opts.player)));
   const me = game.nations.get(opts.player);
   const c = game.territories[me.capital];
   setView(c.cx, c.cy, 32);
-  ui.log({ msg: `${me.flag} ${me.name} 지도자님, 세계 GDP 60%를 장악하면 승리합니다. 40일간 평화가 유지됩니다.`, kind: 'mine', day: 0 });
-});
+  ui.log(saved ? { msg: `💾 저장된 게임을 불러왔습니다 (${me.flag} ${me.name})`, kind: 'mine', day: game.day }
+    : { msg: `${me.flag} ${me.name} 지도자님, 세계 GDP 60%를 장악하면 승리합니다. 40일간 평화가 유지됩니다.`, kind: 'mine', day: 0 });
+}
+let speedBeforePause = 1;
 
 function buildNationVis(n) {
   const t = game.territories[n.capital];
   const g = new THREE.Group();
   const s = citySize(t);
-  const city = makeUnit('city', n.color); city.scale.setScalar(s); city.receiveShadow = true; g.add(city);
+  const city = makeUnit('city', n.color, n.id); city.scale.setScalar(s); city.receiveShadow = true; g.add(city);
   const flag = makeFlag(n.color); flag.position.set(0, 1.0 * s, 0); flag.scale.setScalar(s * 1.2); g.add(flag);
   const gar = new THREE.Group();
-  const tank = makeUnit('tank', n.color); tank.scale.setScalar(U); tank.position.set(0.9 * s + 0.3, 0, 0.3); tank.rotation.y = 0.6; gar.add(tank);
-  for (let i = 0; i < 3; i++) { const inf = makeUnit('inf', n.color); inf.scale.setScalar(U); inf.position.set(0.7 * s + 0.2 + i * 0.18, 0, 0.75 + (i % 2) * 0.12); inf.rotation.y = 0.6; gar.add(inf); }
+  const tank = makeUnit('tank', n.color, n.id); tank.scale.setScalar(U); tank.position.set(0.9 * s + 0.3, 0, 0.3); tank.rotation.y = 0.6; gar.add(tank);
+  for (let i = 0; i < 3; i++) { const inf = makeUnit('inf', n.color, n.id); inf.scale.setScalar(U); inf.position.set(0.7 * s + 0.2 + i * 0.18, 0, 0.75 + (i % 2) * 0.12); inf.rotation.y = 0.6; gar.add(inf); }
   g.add(gar);
   const div = document.createElement('div');
   div.className = 'nlabel' + (n.isPlayer ? ' me' : '');
@@ -207,7 +255,14 @@ function onCapture({ t, from, to }) {
     const [v, p] = sfxAt(t.cx, t.cy, mine); sound.explosion(v, p, 1); shakeAt(t.cx, t.cy, 0.35);
   }, i * 150);
   fx.burn(t.cx, tY(t.idx), t.cy, 12, 1);
-  if (to.id === ui.me.id) sound.victory(); else if (from.id === ui.me.id) sound.defeat();
+  // 우리가 점령하면 웅장한 팡파르 (수도 함락·멸망시키면 더 크게)
+  if (to.id === ui.me.id) sound.conquest(t.cap || game.owned(from.id).length === 0 ? 2 : 1);
+  else if (from.id === ui.me.id) sound.defeat();
+  placeOccFlag(t, to);
+  if (ui.sel === t.idx) ui.renderInfo(true);
+}
+// 점령지에 정복국 국기
+function placeOccFlag(t, to) {
   const old = occFlags.get(t.idx);
   if (old) { scene.remove(old); occFlags.delete(t.idx); }
   if (to.id !== t.home) {
@@ -229,7 +284,7 @@ function buildExp(e) {
   const members = [];
   const add = (type, count, spacing) => {
     for (let i = 0; i < count; i++) {
-      const m = makeUnit(type, n.color); m.scale.setScalar(U * (type === 'ship' ? 1.1 : 1));
+      const m = makeUnit(type, n.color, n.id); m.scale.setScalar(U * (type === 'ship' ? 1.1 : 1));
       const lat = count > 1 ? (i / (count - 1) - 0.5) : 0; // -0.5~0.5: 횡대 위치
       m.userData = { type, lat, back: (type === 'inf' ? 0.55 : 0) + (i % 2) * spacing * 0.5 + Math.random() * 0.25, ph: Math.random() * 6, slot: i / Math.max(1, count - 1) };
       g.add(m); members.push(m);
@@ -295,18 +350,18 @@ function setupFrontModels(v) {
   const nd = Math.min(9, Math.max(2, Math.ceil(v.def0 / 18)));
   const tankShare = D.units.tank * 4 / Math.max(1, D.units.tank * 4 + D.units.inf);
   for (let i = 0; i < nd; i++) {
-    const m = makeUnit(Math.random() < tankShare ? 'tank' : 'inf', D.color); m.scale.setScalar(U);
+    const m = makeUnit(Math.random() < tankShare ? 'tank' : 'inf', D.color, D.id); m.scale.setScalar(U);
     m.userData = { slot: (i + 0.5) / nd, ph: Math.random() * 6 };
     v.defs.add(m);
   }
   scene.add(v.defs);
   const A0 = game.nations.get(e.owner);
-  v.arty = [0.25, 0.75].map((slot) => { const m = makeUnit('arty', A0.color); m.scale.setScalar(U); m.userData = { slot }; v.g.add(m); return m; });
+  v.arty = [0.25, 0.75].map((slot) => { const m = makeUnit('arty', A0.color, A0.id); m.scale.setScalar(U); m.userData = { slot }; v.g.add(m); return m; });
   if (e.kind === 'sea') { // 상륙군
     const A = game.nations.get(e.owner);
     v.landers = [];
     const nl = Math.min(8, Math.max(2, Math.ceil(game.power(e.units, (u) => u.cls === 'ground') / 12)));
-    for (let i = 0; i < nl; i++) { const m = makeUnit(i % 3 === 0 ? 'tank' : 'inf', A.color); m.scale.setScalar(U); m.userData = { slot: (i + 0.5) / nl, ph: Math.random() * 6, type: 'lander' }; v.g.add(m); v.landers.push(m); }
+    for (let i = 0; i < nl; i++) { const m = makeUnit(i % 3 === 0 ? 'tank' : 'inf', A.color, A.id); m.scale.setScalar(U); m.userData = { slot: (i + 0.5) / nl, ph: Math.random() * 6, type: 'lander' }; v.g.add(m); v.landers.push(m); }
   }
 }
 
@@ -488,7 +543,7 @@ addEventListener('keydown', (e) => {
   if (!game || e.target.tagName === 'INPUT') return;
   if (e.code === 'Space') { speed = speed ? 0 : 1; ui.setSpeed(speed); e.preventDefault(); }
   if (e.key === '1' || e.key === '2' || e.key === '3') { speed = [1, 2, 4][+e.key - 1]; ui.setSpeed(speed); }
-  if (e.key === 'Escape') select(null);
+  if (e.key === 'Escape') { if (ui.sel != null) select(null); else ui.togglePause(); }
 });
 
 // ---------- 루프 ----------
@@ -522,6 +577,7 @@ function frame(forceDt) {
     warMap?.update(dt, camD, controls.target);
     garrisons?.update(dt, camD, controls.target);
     updateStrikes(dt);
+    minimap?.update(dt, controls.target, camD, camera.aspect);
     uiT -= dt; if (uiT <= 0) { uiT = 0.25; ui.refresh(); }
     labT -= dt; if (labT <= 0) { labT = 0.3; updateLabels(camD); }
   }
@@ -573,7 +629,7 @@ function airStrike(v, A) {
   const dir = Math.random() < 0.5 ? 1 : -1;
   const from = new THREE.Vector3(cx - px * 8 * dir - p.snx * 5, 2.4, cz - pz * 8 * dir - p.snz * 5);
   const to = new THREE.Vector3(cx + px * 8 * dir + p.snx * 3, 2.8, cz + pz * 8 * dir + p.snz * 3);
-  const m = makeUnit('jet', A.color); m.scale.setScalar(U);
+  const m = makeUnit('jet', A.color, A.id); m.scale.setScalar(U);
   scene.add(m);
   const [v0, p0] = sfxAt(cx, cz); sound.jet(Math.max(v0, 0.2), p0);
   strikes.push({ m, from, to, t: 0, dur: 3.2, drops: [0.42, 0.5, 0.58], y: tY(e.target) });
@@ -615,7 +671,8 @@ function battleCam() {
 }
 
 // 생산 카드용 3D 썸네일: 작은 렌더러로 유닛을 비스듬히 찍어 이미지로
-function renderThumbs(color) {
+function renderThumbs(nation) {
+  const color = nation.color;
   const out = {};
   try {
     const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -626,7 +683,7 @@ function renderThumbs(color) {
     const cam = new THREE.PerspectiveCamera(30, 192 / 138, 0.1, 50);
     const shots = { inf: ['inf', 1.5, 0.55], tank: ['tank', 2.4, 0.3], jet: ['jet', 3.0, 0.1], ship: ['ship', 3.2, 0.25], missile: ['missile', 1.7, 0.05] };
     for (const [k, [type, dist, h]] of Object.entries(shots)) {
-      const m = makeUnit(type, color);
+      const m = makeUnit(type, color, nation.id);
       if (type === 'missile') m.rotation.z = 0.5;
       sc.add(m);
       const box = new THREE.Box3().setFromObject(m), c = box.getCenter(new THREE.Vector3());

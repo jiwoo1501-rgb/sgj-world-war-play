@@ -155,7 +155,7 @@ input:not([type=range]):not([type=file]):not([type=checkbox]), select { backgrou
 .unit-row.dis button { opacity: 0.35; }
 
 /* ---------- 지방 정보 · 공격 ---------- */
-#info { right: 12px; top: 70px; width: 320px; padding: 0 0 12px; max-height: calc(70vh / var(--ui, 1) - 98px); overflow-y: auto; }
+#info { right: 12px; top: 70px; width: 320px; padding: 0 0 12px; max-height: calc(52vh / var(--ui, 1) - 90px); overflow-y: auto; }
 .info-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 10px; padding: 12px 12px 10px;
   background: linear-gradient(100deg, color-mix(in srgb, var(--c, #556) 70%, #000) 0%, color-mix(in srgb, var(--c, #556) 30%, #0b1118) 55%, #0b1118 100%);
   border-bottom: 1px solid var(--line); }
@@ -201,6 +201,9 @@ input:not([type=range]):not([type=file]):not([type=checkbox]), select { backgrou
 #log-list .good { color: var(--good); border-left-color: var(--good); }
 #log-list .big { color: var(--warn); border-left-color: var(--warn); }
 #log-list .war { color: #ffb08a; border-left-color: #ff7a45; }
+#log-list .info { color: var(--muted); font-style: italic; }
+#log-toggle.new { animation: newmsg 0.9s ease-out; }
+@keyframes newmsg { 0% { color: #fff; text-shadow: 0 0 12px var(--gold-2); transform: scale(1.06); } 100% { transform: scale(1); } }
 #log-list li.go { cursor: pointer; }
 #log-list li.go:hover { background: rgba(242,216,143,0.08); }
 
@@ -244,8 +247,39 @@ tr.focus { background: rgba(242,216,143,0.1); }
 #over .start-card { text-align: center; align-items: center; }
 #over-title { font-family: var(--display); font-weight: 400; font-size: 44px; margin: 6px 0; color: var(--gold-2); }
 
+/* ---------- 메인 메뉴 · 일시정지 · 설정 · 결과 ---------- */
+#menu { background: linear-gradient(90deg, rgba(3,6,10,0.9) 0%, rgba(3,6,10,0.5) 45%, rgba(3,6,10,0.05) 100%); place-items: center start; padding-left: max(16px, 6vw); }
+.menu-card { width: min(460px, 100%); }
+.small-card { width: min(420px, 100%); }
+#pause, #settings { z-index: 35; }
+#help { z-index: 40; }
+.menu-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 4px; }
+.menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 16px; text-align: left; border-color: var(--line); position: relative; }
+.menu-item b { font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: 1px; }
+.menu-item small { color: var(--muted); font-size: 12px; }
+.menu-item::after { content: '›'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); font-size: 22px; color: var(--gold); opacity: 0.6; }
+.menu-item:hover:not(:disabled)::after { opacity: 1; right: 12px; }
+.primary-item { background: linear-gradient(180deg, rgba(242,216,143,0.28), rgba(242,216,143,0.08)); border-color: var(--gold); }
+.primary-item b { color: var(--gold-2); }
+.menu-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 11px; color: var(--muted); font-family: var(--num); letter-spacing: 0.5px; flex-wrap: wrap; }
+.card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.card-head .x { margin-left: auto; }
+.card-title { font-family: var(--display); font-weight: 400; margin: 0; font-size: 26px; color: var(--gold-2); letter-spacing: 1px; }
+.set-grid { display: flex; flex-direction: column; gap: 12px; }
+.set-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--muted); }
+.set-grid input[type=range] { accent-color: var(--gold); }
+.over-kicker { color: var(--gold); letter-spacing: 6px; font-size: 12px; font-family: var(--num); font-weight: 700; }
+.over-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin: 6px 0 16px; }
+.over-stats div { background: rgba(0,0,0,0.35); border: 1px solid var(--line-soft); border-radius: 4px; padding: 8px; display: flex; flex-direction: column; align-items: center; }
+.over-stats b { font-family: var(--num); font-size: 24px; color: var(--gold-2); }
+.over-stats span { font-size: 11px; color: var(--muted); }
+.center-row { justify-content: center; }
+.ld-tip { margin-top: 18px; color: var(--muted); font-size: 13px; max-width: 80vw; }
+#minimap { display: block; width: 100%; aspect-ratio: 640 / 300; margin-bottom: 6px; border: 1px solid var(--line); border-radius: 3px; cursor: crosshair; background: #0a1a2a; }
+
 /* ---------- 화면 크기 자동 맞춤 (--ui는 main.js가 창 크기로 계산) ---------- */
 #top, #build, #info, #log, #snd-pop, #toasts, .start-card, .help-card, .bal-card { zoom: var(--ui, 1); }
+#log { max-height: calc(46vh / var(--ui, 1)); }
 .nlabel { font-size: calc(12px * var(--ui, 1)); }
 .nlabel .pw { font-size: calc(13px * var(--ui, 1)); }
 .elabel, .city-label { font-size: calc(11.5px * var(--ui, 1)); }
@@ -282,7 +316,8 @@ tr.focus { background: rgba(242,216,143,0.1); }
   #info { left: 8px; right: 8px; top: auto; bottom: 96px; width: auto; max-height: calc(50vh / var(--ui, 1)); }
   #log { top: auto; bottom: 96px; left: 8px; right: auto; width: auto; max-height: none; background: transparent; border: 0; backdrop-filter: none; box-shadow: none; padding: 0; }
   #log::before, #log::after { display: none; }
-  #log-list { display: none; }
+  #log-list, #minimap { display: none; }
+  #menu { place-items: center; padding-left: 16px; background: rgba(3,6,10,0.6); }
   #log.open { background: linear-gradient(180deg, var(--panel-a), var(--panel-b)); border: 1px solid var(--line); right: 8px; max-height: calc(40vh / var(--ui, 1)); padding: 6px; }
   #log.open #log-list { display: block; }
   #log-toggle { background: linear-gradient(180deg, var(--panel-a), var(--panel-b)); border: 1px solid var(--line); border-radius: 4px; padding: 5px 9px; }
@@ -310,7 +345,8 @@ tr.focus { background: rgba(242,216,143,0.1); }
   #info { top: 42px; bottom: calc(70px + env(safe-area-inset-bottom, 0px)); right: calc(6px + env(safe-area-inset-right, 0px)); width: 300px; max-height: none; }
   #log { left: calc(6px + env(safe-area-inset-left, 0px)); bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: auto; top: auto; width: auto; max-height: none; background: transparent; border: 0; backdrop-filter: none; box-shadow: none; padding: 0; }
   #log::before, #log::after { display: none; }
-  #log-list { display: none; }
+  #log-list, #minimap { display: none; }
+  #menu { place-items: center; padding-left: 16px; }
   #log-toggle { background: linear-gradient(180deg, var(--panel-a), var(--panel-b)); border: 1px solid var(--line); border-radius: 4px; padding: 4px 8px; }
   #log.open { background: linear-gradient(180deg, var(--panel-a), var(--panel-b)); border: 1px solid var(--line); width: min(360px, calc(45vw / var(--ui, 1))); max-height: calc(60vh / var(--ui, 1)); padding: 6px; }
   #log.open #log-list { display: block; }

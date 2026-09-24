@@ -4,17 +4,17 @@
 //  - InstancedMesh로 수백 대를 한 번에 그려 가볍게 유지
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { makeInstanced } from './models.js';
+import { makeInstanced, variantKey } from './models.js';
 import { project } from './map.js';
 import { CITIES } from './cities.js';
 
-const MAX = { inf: 2600, tank: 1100, arty: 300, town: 200 };
+const MAX = { inf: 1400, tank: 600, arty: 160, town: 200 };
 
 export class Garrisons {
   constructor(scene, world, game, deps) {
     this.scene = scene; this.world = world; this.game = game; this.deps = deps; // { tY, sharedSegs, U }
     this.mesh = {};
-    for (const k of ['inf', 'tank', 'arty']) { this.mesh[k] = makeInstanced(k, MAX[k]); scene.add(this.mesh[k]); }
+    this.pools = new Map(); // (유닛 종류, 나라별 모델) → InstancedMesh
     this.posts = []; this.dirty = true; this.cool = 0; this.t = 0;
     this.m4 = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.v = new THREE.Vector3(); this.s = new THREE.Vector3(); this.c = new THREE.Color(); this.up = new THREE.Vector3(0, 1, 0);
     this.buildCities();
@@ -85,18 +85,22 @@ export class Garrisons {
     for (const c of this.cities) c.label.visible = camD < 32 && Math.hypot(c.x - target.x, c.z - target.z) < camD * 1.2;
     if (this.t > 0) return;
     this.t = 0.3;
-    const cnt = { inf: 0, tank: 0, arty: 0 };
+    for (const p of this.pools.values()) p.n = 0;
     const R = camD * 1.15 + 4;
     const show = camD < 75;
     const tier = new Map();
     const U = this.deps.U;
-    const put = (type, x, z, y, yaw, color) => {
-      if (cnt[type] >= MAX[type]) return;
+    // 나라마다 실제 장비 모델이 다르므로, 모델별 InstancedMesh에 나눠 담는다
+    const put = (type, x, z, y, yaw, n) => {
+      const key = type + ':' + variantKey(type, n.id);
+      let p = this.pools.get(key);
+      if (!p) { p = { m: makeInstanced(type, MAX[type], n.id), n: 0 }; this.scene.add(p.m); this.pools.set(key, p); }
+      if (p.n >= MAX[type]) return;
       this.q.setFromAxisAngle(this.up, yaw);
       this.m4.compose(this.v.set(x, y, z), this.q, this.s.setScalar(U));
-      this.mesh[type].setMatrixAt(cnt[type], this.m4);
-      this.mesh[type].setColorAt(cnt[type], this.c.set(color));
-      cnt[type]++;
+      p.m.setMatrixAt(p.n, this.m4);
+      p.m.setColorAt(p.n, this.c.set(n.color));
+      p.n++;
     };
     const tierOf = (n) => {
       if (!tier.has(n.id)) { const p = this.game.armyPow(n) * n.tech; tier.set(n.id, p < 60 ? 0 : p < 300 ? 1 : p < 1200 ? 2 : 3); }
@@ -112,31 +116,31 @@ export class Garrisons {
         const yaw = Math.atan2(-p.fz, p.fx);
         const px = -p.fz, pz = p.fx; // 국경 방향
         const infN = Math.min(3, 1 + tr);
-        for (let k = 0; k < infN; k++) { const l = (k - (infN - 1) / 2) * 0.2; put('inf', p.x + px * l, p.z + pz * l, y, yaw, n.color); }
-        if (tr >= 1) put('tank', p.x - p.fx * 0.35 + px * 0.25, p.z - p.fz * 0.35 + pz * 0.25, y, yaw, n.color);
-        if (tr >= 3) put('tank', p.x - p.fx * 0.35 - px * 0.3, p.z - p.fz * 0.35 - pz * 0.3, y, yaw, n.color);
-        if (p.war && tr >= 2) put('arty', p.x - p.fx * 1.0, p.z - p.fz * 1.0, y, yaw, n.color);
+        for (let k = 0; k < infN; k++) { const l = (k - (infN - 1) / 2) * 0.2; put('inf', p.x + px * l, p.z + pz * l, y, yaw, n); }
+        if (tr >= 1) put('tank', p.x - p.fx * 0.35 + px * 0.25, p.z - p.fz * 0.35 + pz * 0.25, y, yaw, n);
+        if (tr >= 3) put('tank', p.x - p.fx * 0.35 - px * 0.3, p.z - p.fz * 0.35 - pz * 0.3, y, yaw, n);
+        if (p.war && tr >= 2) put('arty', p.x - p.fx * 1.0, p.z - p.fz * 1.0, y, yaw, n);
       }
       // 도시 주둔군 (점령된 도시엔 정복국 병력)
       for (const c of this.cities) {
         if (Math.abs(c.x - target.x) > R || Math.abs(c.z - target.z) > R) continue;
         const t = this.game.territories[c.idx], n = this.game.nations.get(t.owner); if (!n?.alive) continue;
         const y = this.deps.tY(c.idx) + 0.01, tr = tierOf(n);
-        put('tank', c.x + 0.45, c.z + 0.2, y, 0.4, n.color);
-        for (let k = 0; k < 2 + tr; k++) put('inf', c.x - 0.35 + k * 0.17, c.z + 0.45, y, 0.9, n.color);
+        put('tank', c.x + 0.45, c.z + 0.2, y, 0.4, n);
+        for (let k = 0; k < 2 + tr; k++) put('inf', c.x - 0.35 + k * 0.17, c.z + 0.45, y, 0.9, n);
       }
       // 점령지 수도에 정복국 부대
       for (const t of this.game.territories) {
         if (t.owner === t.home || Math.abs(t.cx - target.x) > R || Math.abs(t.cy - target.z) > R) continue;
         const n = this.game.nations.get(t.owner); if (!n?.alive) continue;
         const y = this.deps.tY(t.idx) + 0.01;
-        put('tank', t.cx + 0.5, t.cy - 0.3, y, -0.5, n.color); put('tank', t.cx + 0.7, t.cy + 0.1, y, -0.5, n.color);
-        for (let k = 0; k < 4; k++) put('inf', t.cx - 0.5 + k * 0.18, t.cy + 0.55, y, -0.3, n.color);
+        put('tank', t.cx + 0.5, t.cy - 0.3, y, -0.5, n); put('tank', t.cx + 0.7, t.cy + 0.1, y, -0.5, n);
+        for (let k = 0; k < 4; k++) put('inf', t.cx - 0.5 + k * 0.18, t.cy + 0.55, y, -0.3, n);
       }
     }
-    for (const k of Object.keys(cnt)) {
-      const m = this.mesh[k]; m.count = cnt[k];
-      m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    for (const p of this.pools.values()) {
+      p.m.count = p.n;
+      p.m.instanceMatrix.needsUpdate = true; if (p.m.instanceColor) p.m.instanceColor.needsUpdate = true;
     }
   }
 }

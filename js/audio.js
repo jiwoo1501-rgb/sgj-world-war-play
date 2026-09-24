@@ -338,6 +338,67 @@ export class Sound {
     this.brassChord([64, 67, 71], t + 0.38, 0.18, 0.5); this.brassChord([66, 69, 74], t + 0.6, 1.1, 0.6);
     this.timpani(t + 0.6, 0.8);
   }
+  // 정복 팡파르: level 1 = 지방 점령, 2 = 수도 함락·나라 멸망
+  conquest(level = 1) {
+    if (!this.ok('conq', level > 1 ? 2.5 : 1.8)) return;
+    this.ensureBuffers();
+    const c = this.ctx, t0 = c.currentTime + 0.05, big = level > 1;
+    const bus = this.sfxBus;
+    const o = this.out(bus, 0, 0.7);
+    // 배경음악 잠시 낮춤
+    this.musicBus.gain.setTargetAtTime(this.pref.music * 0.15, t0, 0.1);
+    this.musicBus.gain.setTargetAtTime(this.pref.music * 0.6, t0 + (big ? 5 : 3.2), 0.6);
+    // 1) 팀파니 크레셴도 롤
+    const rollEnd = t0 + (big ? 1.2 : 0.8), hits = big ? 16 : 11;
+    for (let i = 0; i < hits; i++) { const tt = t0 + (i / hits) * (rollEnd - t0); this.timpani(tt, 0.15 + 0.7 * (i / hits) ** 1.5, bus); }
+    const T = rollEnd;
+    // 2) 오케스트라 히트: 심벌 + 대북 + 금관 화음 + 현악 스웰
+    const cym = this.buf('white', T, 3.5); cym.connect(this.filt('highpass', 4200)).connect(this.gainEnv(T, 0.005, 0.5, 3.0)).connect(o);
+    const bd = c.createOscillator(); bd.frequency.setValueAtTime(70, T); bd.frequency.exponentialRampToValueAtTime(28, T + 0.8);
+    bd.connect(this.gainEnv(T, 0.004, 1.3, 1.2)).connect(o); bd.start(T); bd.stop(T + 1.5);
+    const ph1 = [38, 45, 50, 54, 57, 62, 66];                 // D장조 (D2 A2 D3 F#3 A3 D4 F#4)
+    this.brassChord(ph1, T, big ? 1.1 : 1.8, 0.9, bus);
+    this.choir(ph1.slice(2), T + 0.05, big ? 1.2 : 2.2, 0.35, bus);
+    this.bells([74, 78, 81, 86], T + 0.1, 0.12);
+    if (big) {
+      // 3) 두 번째 악절: G장조 → D장조 해결 + 예포 3발
+      const T2 = T + 1.25, T3 = T2 + 0.9;
+      [T2, T2 + 0.45].forEach((tt, i) => this.timpani(tt, 0.8 - i * 0.2, bus));
+      this.brassChord([43, 50, 55, 59, 62, 67], T2, 0.8, 0.85, bus);
+      this.choir([55, 59, 62, 67], T2, 0.9, 0.3, bus);
+      this.timpani(T3, 1.0, bus);
+      const cym2 = this.buf('white', T3, 4); cym2.connect(this.filt('highpass', 3800)).connect(this.gainEnv(T3, 0.005, 0.55, 3.5)).connect(o);
+      this.brassChord([38, 45, 50, 54, 57, 62, 66, 69], T3, 2.6, 1.0, bus);
+      this.choir([50, 54, 57, 62, 66], T3, 2.8, 0.38, bus);
+      this.bells([74, 78, 81, 86, 90], T3 + 0.05, 0.14);
+      if (this.smp?.cannon) [T3 + 0.3, T3 + 1.2, T3 + 2.1].forEach((tt) => this.play('cannon', this.out(bus, (Math.random() - 0.5) * 0.8, 0.6), tt, { gain: 0.55, rate: 0.85 }));
+    }
+  }
+  // 합창 "아—" (톱니파 + 모음 포먼트)
+  choir(notes, t, dur, vol, bus = this.sfxBus) {
+    const c = this.ctx, o = this.out(bus, 0, 0.8);
+    const f1 = this.filt('bandpass', 730, 6), f2 = this.filt('bandpass', 1090, 8), mix = c.createGain(); mix.gain.value = 1;
+    f1.connect(mix); f2.connect(mix);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.35); g.gain.setValueAtTime(vol, t + dur * 0.75); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.8);
+    mix.connect(g).connect(o);
+    for (const m of notes) for (const det of [-9, 0, 9]) {
+      const s = c.createOscillator(); s.type = 'sawtooth'; s.frequency.value = mtof(m); s.detune.value = det + (Math.random() - 0.5) * 6;
+      const vib = c.createOscillator(); vib.frequency.value = 5 + Math.random(); const vg = c.createGain(); vg.gain.value = 7; vib.connect(vg).connect(s.detune);
+      const sg = c.createGain(); sg.gain.value = 0.4 / notes.length; s.connect(sg); sg.connect(f1); sg.connect(f2);
+      s.start(t); s.stop(t + dur + 1); vib.start(t); vib.stop(t + dur + 1);
+    }
+  }
+  // 종소리 (비정수배 배음)
+  bells(notes, t, vol) {
+    const c = this.ctx, o = this.out(this.sfxBus, 0.2, 0.7);
+    notes.forEach((m, i) => {
+      const tt = t + i * 0.09;
+      for (const [r, a] of [[1, 1], [2.76, 0.4], [5.4, 0.2]]) {
+        const s = c.createOscillator(); s.frequency.value = mtof(m) * r;
+        s.connect(this.gainEnv(tt, 0.002, vol * a, 2.2 / r)).connect(o); s.start(tt); s.stop(tt + 2.5);
+      }
+    });
+  }
   defeat() { // 우리 영토 상실
     if (!this.ok('def', 2)) return;
     const t = this.ctx.currentTime + 0.05;

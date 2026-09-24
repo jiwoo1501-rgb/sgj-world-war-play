@@ -47,6 +47,7 @@ export class Game {
     this.nations = new Map();
     this.peace = 40; // 시작 후 AI 공격 금지 시간(초)
     this.wars = new Map(); // 'A|B' → { a, b, since, last }
+    this.stats = { battles: 0, captured: 0, lost: 0, repelled: 0, built: 0, peak: 0, eliminated: 0 }; // 우리나라 전적
     this.over = false;
     this.build();
   }
@@ -122,6 +123,7 @@ export class Game {
       if (key === 'ship' && !n.coastal) break;
       n.gold -= u.cost; n.units[key]++; bought++;
     }
+    if (n.isPlayer) this.stats.built += bought;
     return bought;
   }
 
@@ -167,6 +169,7 @@ export class Game {
     e.len = Math.max(1, Math.hypot(e.to.x - e.from.x, e.to.y - e.from.y));
     this.expeditions.push(e);
     n.busy++;
+    if (n.isPlayer) this.stats.battles++;
     const dn = this.nations.get(T.owner);
     this.touchWar(n, dn);
     dn.hostile.set(nid, (dn.hostile.get(nid) || 0) + 1);
@@ -213,6 +216,7 @@ export class Game {
       this.expeditions = this.expeditions.filter((e) => e.state !== 'done');
     }
     const me = this.nations.get(this.opts.player);
+    this.stats.peak = Math.max(this.stats.peak, this.gdpShare(me.id));
     if (!me.alive) { this.over = true; this.emit('over', { win: false }); }
     else if (this.gdpShare(me.id) >= 0.6) { this.over = true; this.emit('over', { win: true }); }
   }
@@ -259,6 +263,7 @@ export class Game {
       }
       if (e.def <= 0.5 && groundLeft >= 0.5) { this.capture(e, T, A, D); return; }
       if (groundLeft < 0.5) {
+        if (D.isPlayer) this.stats.repelled++;
         this.log(`${A.flag} ${A.name}의 ${T.name} 공격이 격퇴되었습니다`, D.isPlayer ? 'good' : A.isPlayer ? 'danger' : '');
         this.returnHome(e);
       }
@@ -283,11 +288,14 @@ export class Game {
     A.coastal = A.coastal || T.coastal;
     this.recalcCap(A); this.recalcCap(D);
     this.touchWar(A, D);
+    if (A.isPlayer) this.stats.captured++;
+    if (D.isPlayer) this.stats.lost++;
     this.emit('capture', { t: T, from: D, to: A });
     this.log(`🚩 ${A.flag} ${josa(A.name, '이가')} ${josa(T.name, '을를')} 점령했습니다`, A.isPlayer ? 'mine' : D.isPlayer ? 'danger' : '', { x: T.cx, z: T.cy });
     const left = this.owned(D.id);
     if (!left.length) {
       D.alive = false;
+      if (A.isPlayer) this.stats.eliminated++;
       this.log(`☠️ ${D.flag} ${josa(D.name, '이가')} 멸망했습니다`, D.isPlayer ? 'danger' : 'big');
       A.gold += D.gold; D.gold = 0;
       for (const [k, w] of this.wars) if (w.a === D.id || w.b === D.id) { this.wars.delete(k); this.emit('peace', w); }
@@ -298,6 +306,30 @@ export class Game {
       this.log(`🏛️ ${D.name} 수도가 함락되어 ${josa(this.territories[D.capital].name, '으로')} 천도`, 'big');
       this.emit('capital', D);
     }
+  }
+
+  // ---------- 저장 / 불러오기 ----------
+  serialize() {
+    const nations = {};
+    const units = new Map();
+    for (const e of this.expeditions) { const u = units.get(e.owner) || {}; for (const k of UNIT_KEYS) u[k] = (u[k] || 0) + e.units[k]; units.set(e.owner, u); } // 이동 중 병력은 본국으로 복귀 처리
+    for (const n of this.nations.values()) {
+      const u = { ...n.units }; const add = units.get(n.id); if (add) for (const k of UNIT_KEYS) u[k] += add[k];
+      nations[n.id] = { gold: Math.round(n.gold), units: u, alive: n.alive, capital: n.capital, bal: n.bal, hostile: [...n.hostile], coastal: n.coastal };
+    }
+    return { v: 1, savedAt: Date.now(), opts: { player: this.opts.player, aggr: this.opts.aggr, playerFocus: this.opts.playerFocus, autoPlayer: !!this.opts.autoPlayer, balance: this.opts.balance },
+      t: this.t, day: this.day, owners: this.territories.map((t) => t.owner), wars: [...this.wars.values()], nations, stats: this.stats };
+  }
+  restore(s) {
+    this.t = s.t; this.day = s.day; this.peace = 0;
+    s.owners.forEach((o, i) => { if (this.territories[i]) this.territories[i].owner = o; });
+    for (const [id, d] of Object.entries(s.nations)) {
+      const n = this.nations.get(id); if (!n) continue;
+      Object.assign(n, { gold: d.gold, units: d.units, alive: d.alive, capital: d.capital, bal: { ...DEFAULT_BAL, ...d.bal }, hostile: new Map(d.hostile), coastal: d.coastal, busy: 0 });
+    }
+    this.wars = new Map(s.wars.map((w) => [this.warKey(w.a, w.b), w]));
+    this.stats = { ...this.stats, ...s.stats };
+    for (const n of this.nations.values()) this.recalcCap(n);
   }
 
   // ---------- 전쟁 상태 ----------

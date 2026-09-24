@@ -58,9 +58,9 @@ function lathe(profile, seg = 16) {
 // ---------------------------------------------------------------------------
 const builders = {
   // 보병: 전투복·방탄조끼·헬멧·K2 소총 거치 자세 (키 약 0.95)
-  inf() {
+  inf(S) {
     const g = [];
-    const uni = C.olive, vest = C.olive2;
+    const uni = S.base, vest = S.dark;
     for (const z of [-0.055, 0.055]) {
       const step = z > 0 ? 0.05 : -0.03;
       g.push(part(box(0.075, 0.2, 0.08), uni, M(step, 0.34, z, 0, 0, z > 0 ? -0.18 : 0.12), CAMO));      // 허벅지
@@ -72,8 +72,8 @@ const builders = {
     g.push(part(box(0.15, 0.24, 0.22), uni, M(0.005, 0.6, 0), CAMO));                                     // 상체
     g.push(part(box(0.17, 0.2, 0.23), vest, M(0.012, 0.61, 0)));                                          // 방탄조끼
     for (const z of [-0.06, 0, 0.06]) g.push(part(box(0.04, 0.06, 0.045), C.tan, M(0.1, 0.56, z)));       // 탄창 파우치
-    g.push(part(box(0.1, 0.2, 0.18), C.olive2, M(-0.13, 0.62, 0)));                                      // 배낭
-    g.push(part(cyl(0.03, 0.03, 0.18, 8), C.olive, M(-0.13, 0.75, 0, H)));                                // 침낭
+    g.push(part(box(0.1, 0.2, 0.18), S.dark, M(-0.13, 0.62, 0)));                                        // 배낭
+    g.push(part(cyl(0.03, 0.03, 0.18, 8), S.base, M(-0.13, 0.75, 0, H)));                                // 침낭
     g.push(part(box(0.04, 0.05, 0.12), 0xffffff, M(-0.02, 0.66, 0.117), TINT));                           // 어깨 국기 패치
     g.push(part(box(0.1, 0.012, 0.17), 0xffffff, M(-0.13, 0.725, 0), TINT));                              // 배낭 위 식별 천
     g.push(part(cyl(0.079, 0.079, 0.02, 14), 0xffffff, M(0.0, 0.83, 0), TINT));                             // 헬멧 띠
@@ -87,8 +87,8 @@ const builders = {
     // 머리·헬멧
     g.push(part(cyl(0.035, 0.04, 0.05, 8), C.skin, M(0.01, 0.745, 0)));
     g.push(part(sph(0.058, 12, 10), C.skin, M(0.015, 0.8, 0)));
-    g.push(part(sph(0.075, 14, 8, 0, PI * 2, 0, H * 1.08), C.olive, M(0, 0.815, 0, 0, 0, 0.08, 1.05, 0.9, 1.0)));
-    g.push(part(cyl(0.078, 0.08, 0.012, 14), C.olive, M(0.003, 0.81, 0)));                                // 헬멧 테
+    g.push(part(sph(0.075, 14, 8, 0, PI * 2, 0, H * 1.08), S.base, M(0, 0.815, 0, 0, 0, 0.08, 1.05, 0.9, 1.0), CAMO));
+    g.push(part(cyl(0.078, 0.08, 0.012, 14), S.base, M(0.003, 0.81, 0)));                                // 헬멧 테
     g.push(part(box(0.03, 0.03, 0.05), C.dark, M(0.075, 0.855, 0)));                                     // 야시경 마운트
     g.push(part(box(0.02, 0.018, 0.1), C.black, M(0.066, 0.8, 0)));                                      // 고글
     // K2 소총
@@ -101,12 +101,12 @@ const builders = {
     return mergeGeometries(g).scale(1.25, 1.25, 1.25);
   },
 
-  // 전차: K2 흑표 풍 (길이 약 1.3)
-  tank() {
+  // 전차: K2 흑표 (길이 약 1.3)
+  k2(S) {
     const g = [];
-    const body = C.olive;
+    const body = S.base;
     // 하부 차체 (앞 경사 장갑)
-    g.push(part(side([[-0.62, 0.1], [0.5, 0.1], [0.66, 0.2], [0.66, 0.25], [-0.64, 0.25]], 0.46), C.olive2, null, CAMO));
+    g.push(part(side([[-0.62, 0.1], [0.5, 0.1], [0.66, 0.2], [0.66, 0.25], [-0.64, 0.25]], 0.46), S.dark, null, CAMO));
     // 상부 차체
     g.push(part(side([[-0.64, 0.25], [0.66, 0.25], [0.46, 0.33], [-0.62, 0.34]], 0.6), body, null, CAMO));
     // 궤도·바퀴
@@ -156,9 +156,9 @@ const builders = {
   },
 
   // 자주포: K9 천둥 풍 (포탑이 크고 포신이 김, 포신이 들린 사격 자세)
-  arty() {
+  arty(S) {
     const g = [];
-    const body = C.olive;
+    const body = S.base;
     g.push(part(side([[-0.62, 0.1], [0.52, 0.1], [0.62, 0.22], [0.5, 0.3], [-0.62, 0.3]], 0.54), body, null, CAMO));
     for (const z of [-0.265, 0.265]) {
       g.push(part(box(1.2, 0.035, 0.12), C.rubber, M(0, 0.02, z)));
@@ -176,8 +176,8 @@ const builders = {
     return mergeGeometries(g);
   },
 
-  // 전투기: KF-21 보라매 풍 (길이 약 1.6)
-  jet() {
+  // 전투기: KF-21 보라매 (길이 약 1.6)
+  kf21() {
     const g = [];
     const skin = C.jet;
     g.push(part(lathe([[-0.72, 0.07], [-0.55, 0.1], [-0.1, 0.11], [0.25, 0.1], [0.5, 0.07], [0.7, 0.035], [0.82, 0.0]], 18), skin, M(0, 0, 0, 0, 0, 0, 1, 0.75, 1.25)));
@@ -216,8 +216,8 @@ const builders = {
     return mergeGeometries(g).scale(1.25, 1.25, 1.25);
   },
 
-  // 구축함: 세종대왕급 풍 (길이 약 2.2)
-  ship() {
+  // 구축함: 세종대왕급 (길이 약 2.2)
+  sejong() {
     const g = [];
     // 선체: 위에서 본 윤곽을 뽑고 아래쪽을 좁혀 V자 단면
     const hull = top([[1.12, 0], [0.8, -0.14], [0.2, -0.19], [-0.9, -0.18], [-1.02, -0.14], [-1.02, 0.14], [-0.9, 0.18], [0.2, 0.19], [0.8, 0.14]], 0.26);
@@ -301,6 +301,261 @@ const builders = {
   },
 };
 
+
+// ============================================================================
+// 나라별 실제 장비 (전차 · 전투기 · 군함) — 실루엣의 핵심 특징을 살린 절차적 모델
+// ============================================================================
+// 공통 하부: 궤도와 보기륜 (n개, 반지름 r), 사이드스커트 여부
+function running(g, S, { n = 6, r = 0.075, len = 1.2, gap = false, skirt = true, z0 = 0.265, sprocketFront = true } = {}) {
+  for (const z of [-z0, z0]) {
+    const sz = Math.sign(z);
+    g.push(part(box(len, 0.035, 0.14), C.rubber, M(-0.02, 0.02, z)));
+    g.push(part(box(len * 0.92, 0.03, 0.14), C.rubber, M(-0.02, 0.215, z)));
+    const span = len * 0.8, step = span / (n - 1);
+    for (let i = 0; i < n; i++) {
+      const x = -span / 2 + i * step;
+      g.push(part(cyl(r, r, 0.12, 16), C.dark, M(x, r + 0.025, z, H)));
+      g.push(part(cyl(r * 0.45, r * 0.45, 0.125, 10), C.steel, M(x, r + 0.025, z + sz * 0.002, H)));
+    }
+    const sx = sprocketFront ? len / 2 - 0.08 : -len / 2 + 0.08;
+    g.push(part(cyl(0.085, 0.085, 0.1, 12), C.gun, M(sx, 0.14, z, H)));
+    if (gap) for (let i = 0; i < 3; i++) g.push(part(cyl(0.025, 0.025, 0.1, 8), C.dark, M(-0.3 + i * 0.3, 0.2, z, H))); // 상부 지지륜
+    if (skirt) g.push(part(box(len, 0.12, 0.02), S.base, M(0, 0.2, z + sz * 0.075), CAMO));
+  }
+}
+const idPlate = (g, x, y, z0, w = 0.12) => { g.push(part(box(w, 0.08, 0.005), 0xffffff, M(x, y, z0), TINT)); g.push(part(box(w, 0.08, 0.005), 0xffffff, M(x, y, -z0), TINT)); };
+const roofMark = (g, x, y, w = 0.28, d = 0.28) => g.push(part(box(w, 0.008, d), 0xffffff, M(x, y, 0), TINT));
+
+Object.assign(builders, {
+  // 미국 M1A2 에이브럼스: 넓고 납작한 판형 포탑, 긴 바슬 적재함, 보기륜 7개, 사막색
+  abrams(S) {
+    const g = [];
+    running(g, S, { n: 7, r: 0.07, len: 1.3 });
+    g.push(part(side([[-0.66, 0.1], [0.52, 0.1], [0.7, 0.22], [0.66, 0.27], [-0.66, 0.27]], 0.5), S.dark, null, CAMO));
+    g.push(part(side([[-0.66, 0.27], [0.68, 0.27], [0.5, 0.33], [-0.66, 0.33]], 0.62), S.base, null, CAMO));
+    g.push(part(top([[0.34, -0.14], [0.2, -0.3], [-0.36, -0.3], [-0.36, 0.3], [0.2, 0.3], [0.34, 0.14]], 0.13, 0.012), S.base, M(0, 0.33, 0), CAMO));
+    g.push(part(box(0.3, 0.1, 0.56), S.dark, M(-0.52, 0.4, 0), CAMO));                                       // 바슬 적재함
+    for (let i = 0; i < 5; i++) g.push(part(box(0.005, 0.1, 0.56), C.gun, M(-0.4 - i * 0.06, 0.4, 0)));
+    g.push(part(box(0.1, 0.1, 0.2), S.dark, M(0.36, 0.4, 0), CAMO));
+    g.push(part(cyl(0.03, 0.034, 0.95, 12), S.base, M(0.86, 0.41, 0, 0, 0, H), CAMO));
+    g.push(part(cyl(0.028, 0.028, 0.03, 12), C.black, M(1.34, 0.41, 0, 0, 0, H)));
+    g.push(part(box(0.12, 0.08, 0.1), C.gun, M(-0.05, 0.5, 0.14)));                                        // CROWS 원격무장
+    g.push(part(cyl(0.007, 0.007, 0.22, 6), C.black, M(0.08, 0.53, 0.14, 0, 0, H)));
+    g.push(part(box(0.08, 0.06, 0.08), C.gun, M(0.05, 0.49, -0.15)));
+    g.push(part(box(0.06, 0.05, 0.62), C.black, M(-0.67, 0.3, 0)));                                        // 가스터빈 배기구
+    roofMark(g, -0.05, 0.465); idPlate(g, -0.1, 0.4, 0.302);
+    return mergeGeometries(g);
+  },
+  // 독일 레오파르트 2A7: 화살촉 모양 쐐기형 증가장갑 포탑, 수직 측면, 보기륜 7개
+  leo2(S) {
+    const g = [];
+    running(g, S, { n: 7, r: 0.072, len: 1.28 });
+    g.push(part(side([[-0.64, 0.1], [0.52, 0.1], [0.68, 0.22], [0.66, 0.27], [-0.64, 0.27]], 0.5), S.dark, null, CAMO));
+    g.push(part(side([[-0.64, 0.27], [0.66, 0.27], [0.46, 0.34], [-0.64, 0.34]], 0.6), S.base, null, CAMO));
+    g.push(part(top([[0.48, 0], [0.22, -0.27], [-0.38, -0.27], [-0.38, 0.27], [0.22, 0.27]], 0.17, 0.01), S.base, M(0, 0.34, 0), CAMO)); // 쐐기 포탑
+    g.push(part(box(0.2, 0.12, 0.46), S.dark, M(-0.46, 0.42, 0), CAMO));
+    g.push(part(cyl(0.03, 0.034, 0.95, 12), S.base, M(0.84, 0.43, 0, 0, 0, H), CAMO));
+    g.push(part(cyl(0.04, 0.04, 0.1, 12), S.dark, M(0.62, 0.43, 0, 0, 0, H)));
+    g.push(part(cyl(0.05, 0.05, 0.08, 10), C.gun, M(0.02, 0.55, -0.14)));                                  // 조준경(PERI)
+    g.push(part(box(0.06, 0.08, 0.06), C.glass, M(0.08, 0.57, -0.14)));
+    roofMark(g, -0.1, 0.515); idPlate(g, -0.15, 0.42, 0.272);
+    return mergeGeometries(g);
+  },
+  // 러시아 T-90M: 낮은 차체, 둥근 주조 포탑 + 반응장갑(ERA) 블록, 보기륜 6개 간격 넓음, 적외선 탐조등, 연료드럼
+  t90(S) {
+    const g = [];
+    running(g, S, { n: 6, r: 0.085, len: 1.18, gap: true, skirt: false });
+    g.push(part(box(1.14, 0.03, 0.02), S.base, M(0, 0.25, 0.34), CAMO)); g.push(part(box(1.14, 0.03, 0.02), S.base, M(0, 0.25, -0.34), CAMO)); // 흙받이
+    g.push(part(side([[-0.6, 0.1], [0.45, 0.1], [0.64, 0.2], [0.62, 0.25], [-0.6, 0.25]], 0.5), S.dark, null, CAMO));
+    g.push(part(side([[-0.6, 0.25], [0.62, 0.25], [0.42, 0.3], [-0.6, 0.3]], 0.66), S.base, null, CAMO));
+    for (let i = 0; i < 5; i++) for (const z of [-0.12, 0.12]) g.push(part(box(0.1, 0.02, 0.1), S.dark, M(0.5 - i * 0.02, 0.23 + i * 0.012, z + (i % 2) * 0.02, 0, 0, 0.45)));  // 전면 ERA
+    g.push(part(sph(0.28, 18, 10, 0, PI * 2, 0, H), S.base, M(-0.05, 0.3, 0, 0, 0, 0, 1.05, 0.55, 1), CAMO));   // 둥근 포탑
+    for (const z of [-1, 1]) for (let i = 0; i < 3; i++) g.push(part(box(0.1, 0.06, 0.08), S.dark, M(0.18 - i * 0.02, 0.36 + i * 0.03, z * (0.1 + i * 0.05), 0, z * 0.5, 0)));  // 포탑 ERA
+    g.push(part(cyl(0.028, 0.032, 0.95, 12), S.base, M(0.72, 0.4, 0, 0, 0, H), CAMO));
+    for (const z of [-0.13, 0.13]) { g.push(part(box(0.08, 0.07, 0.06), C.dark, M(0.17, 0.42, z))); g.push(part(box(0.005, 0.05, 0.045), 0xa32020, M(0.21, 0.42, z))); } // 적외선 탐조등
+    g.push(part(box(0.06, 0.08, 0.06), C.gun, M(-0.12, 0.47, 0.12)));
+    g.push(part(cyl(0.006, 0.006, 0.2, 6), C.black, M(0.0, 0.52, 0.12, 0, 0, H)));
+    for (const z of [-0.13, 0.13]) g.push(part(cyl(0.06, 0.06, 0.2, 10), S.dark, M(-0.72, 0.28, z, H)));   // 후방 연료드럼
+    roofMark(g, -0.08, 0.455, 0.22, 0.22); idPlate(g, -0.3, 0.29, 0.332);
+    return mergeGeometries(g);
+  },
+  // 중국 99식: T-72 계열 차체, 뾰족한 화살촉 ERA 포탑 전면, 레이저 방어장치
+  type99(S) {
+    const g = [];
+    running(g, S, { n: 6, r: 0.08, len: 1.22, gap: true, skirt: true });
+    g.push(part(side([[-0.62, 0.1], [0.48, 0.1], [0.66, 0.21], [0.64, 0.26], [-0.62, 0.26]], 0.5), S.dark, null, CAMO));
+    g.push(part(side([[-0.62, 0.26], [0.64, 0.26], [0.44, 0.31], [-0.62, 0.31]], 0.62), S.base, null, CAMO));
+    g.push(part(top([[0.2, -0.24], [-0.34, -0.24], [-0.4, -0.18], [-0.4, 0.18], [-0.34, 0.24], [0.2, 0.24]], 0.15, 0.01), S.base, M(0, 0.31, 0), CAMO));
+    g.push(part(top([[0.52, 0], [0.2, -0.26], [0.16, -0.24], [0.16, 0.24], [0.2, 0.26]], 0.14), S.dark, M(0, 0.31, 0), CAMO));    // 화살촉 ERA
+    g.push(part(cyl(0.028, 0.032, 0.95, 12), S.base, M(0.84, 0.39, 0, 0, 0, H), CAMO));
+    g.push(part(box(0.1, 0.08, 0.08), C.gun, M(-0.05, 0.5, -0.14))); g.push(part(cyl(0.03, 0.03, 0.02, 10), 0x3a8a5a, M(0.0, 0.5, -0.14, 0, 0, H))); // 레이저 경보기
+    g.push(part(cyl(0.006, 0.006, 0.2, 6), C.black, M(0.02, 0.5, 0.12, 0, 0, H)));
+    roofMark(g, -0.1, 0.465); idPlate(g, -0.2, 0.38, 0.242);
+    return mergeGeometries(g);
+  },
+  // 일본 10식: 작고 각진 포탑, 보기륜 5개, 짧은 차체
+  type10(S) {
+    const g = [];
+    running(g, S, { n: 5, r: 0.08, len: 1.1 });
+    g.push(part(side([[-0.56, 0.1], [0.44, 0.1], [0.58, 0.22], [0.56, 0.27], [-0.56, 0.27]], 0.48), S.dark, null, CAMO));
+    g.push(part(side([[-0.56, 0.27], [0.58, 0.27], [0.4, 0.32], [-0.56, 0.32]], 0.58), S.base, null, CAMO));
+    g.push(part(top([[0.3, -0.2], [0.26, -0.26], [-0.44, -0.26], [-0.44, 0.26], [0.26, 0.26], [0.3, 0.2]], 0.16, 0.01), S.base, M(0, 0.32, 0), CAMO));
+    for (const z of [-0.27, 0.27]) g.push(part(box(0.5, 0.12, 0.02), S.dark, M(-0.05, 0.4, z), CAMO));    // 모듈 장갑
+    g.push(part(cyl(0.028, 0.032, 0.78, 12), S.base, M(0.7, 0.41, 0, 0, 0, H), CAMO));
+    g.push(part(box(0.08, 0.07, 0.07), C.gun, M(0.02, 0.52, 0.14)));
+    roofMark(g, -0.08, 0.485); idPlate(g, -0.25, 0.4, 0.282);
+    return mergeGeometries(g);
+  },
+  // 이스라엘 메르카바 Mk4: 엔진이 앞, 포탑이 뒤로 치우친 긴 쐐기, 포탑 뒤 체인볼
+  merkava(S) {
+    const g = [];
+    running(g, S, { n: 6, r: 0.078, len: 1.3, sprocketFront: true });
+    g.push(part(side([[-0.66, 0.1], [0.5, 0.1], [0.72, 0.24], [0.5, 0.33], [-0.66, 0.33]], 0.6), S.base, null, CAMO));
+    g.push(part(top([[0.4, 0], [0.1, -0.28], [-0.5, -0.28], [-0.5, 0.28], [0.1, 0.28]], 0.16, 0.01), S.base, M(-0.12, 0.33, 0), CAMO));
+    for (let i = 0; i < 9; i++) g.push(part(sph(0.025, 6, 5), C.gun, M(-0.63, 0.37 - (i % 3) * 0.04, -0.2 + Math.floor(i / 3) * 0.2)));  // 체인볼
+    g.push(part(cyl(0.03, 0.034, 0.9, 12), S.base, M(0.72, 0.42, 0, 0, 0, H), CAMO));
+    g.push(part(box(0.1, 0.07, 0.08), C.gun, M(-0.1, 0.52, 0.14)));
+    roofMark(g, -0.2, 0.495); idPlate(g, -0.2, 0.42, 0.302);
+    return mergeGeometries(g);
+  },
+  // 북한 천마호 (T-62 계열): 작은 반구형 포탑, 보기륜 5개, 포신 중간 배연기
+  t62(S) {
+    const g = [];
+    running(g, S, { n: 5, r: 0.09, len: 1.12, gap: false, skirt: false });
+    g.push(part(box(1.1, 0.03, 0.02), S.base, M(0, 0.24, 0.33), CAMO)); g.push(part(box(1.1, 0.03, 0.02), S.base, M(0, 0.24, -0.33), CAMO));
+    g.push(part(side([[-0.58, 0.1], [0.42, 0.1], [0.6, 0.2], [0.58, 0.25], [-0.58, 0.25]], 0.5), S.dark, null, CAMO));
+    g.push(part(side([[-0.58, 0.25], [0.58, 0.25], [0.4, 0.29], [-0.58, 0.29]], 0.64), S.base, null, CAMO));
+    g.push(part(sph(0.24, 16, 10, 0, PI * 2, 0, H), S.base, M(-0.02, 0.29, 0, 0, 0, 0, 1, 0.62, 1), CAMO));
+    g.push(part(cyl(0.024, 0.026, 0.8, 10), S.base, M(0.62, 0.38, 0, 0, 0, H), CAMO));
+    g.push(part(cyl(0.035, 0.035, 0.08, 10), S.dark, M(0.72, 0.38, 0, 0, 0, H)));
+    g.push(part(box(0.06, 0.06, 0.06), C.dark, M(0.14, 0.4, 0.12))); g.push(part(box(0.004, 0.04, 0.04), 0xa32020, M(0.172, 0.4, 0.12)));
+    for (const z of [-0.14, 0.14]) g.push(part(cyl(0.055, 0.055, 0.18, 10), S.dark, M(-0.68, 0.27, z, H)));
+    roofMark(g, -0.02, 0.44, 0.2, 0.2); idPlate(g, -0.2, 0.26, 0.322);
+    return mergeGeometries(g);
+  },
+
+  // ---------------- 전투기 ----------------
+  // 미국 F-35: 뭉툭한 단발 동체, 기울어진 쌍꼬리, 사다리꼴 날개
+  f35() { return jetBody({ fat: 1.25, twin: false, fins: 'canted', wing: [[0.2, 0.1], [-0.32, 0.62], [-0.46, 0.62], [-0.5, 0.12]], canard: false, intake: 'side' }); },
+  // F-16: 가는 동체, 턱 밑 흡입구, 단일 수직꼬리, 잘린 델타 날개
+  f16() { return jetBody({ fat: 0.9, twin: false, fins: 'single', wing: [[0.15, 0.08], [-0.3, 0.58], [-0.42, 0.58], [-0.42, 0.1]], canard: false, intake: 'chin' }); },
+  // 러시아 Su-35: 긴 동체, 넓게 벌어진 쌍발 엔진, 수직 쌍꼬리, 꼬리 스팅어
+  su35() { return jetBody({ fat: 1.0, twin: 'wide', fins: 'upright', wing: [[0.2, 0.18], [-0.4, 0.78], [-0.55, 0.78], [-0.55, 0.2]], canard: false, intake: 'under', long: 1.15, stinger: true }); },
+  // MiG-29: 중형, 벌어진 쌍발, 바깥으로 기운 쌍꼬리, 큰 날개 뿌리 연장
+  mig29() { return jetBody({ fat: 0.95, twin: 'wide', fins: 'canted', wing: [[0.3, 0.14], [-0.3, 0.62], [-0.44, 0.62], [-0.46, 0.18]], canard: false, intake: 'under' }); },
+  // 중국 J-20: 긴 동체, 앞쪽 카나드, 델타 날개, 작은 기운 꼬리와 배지느러미
+  j20() { return jetBody({ fat: 1.05, twin: true, fins: 'small', wing: [[0.05, 0.1], [-0.52, 0.66], [-0.6, 0.66], [-0.6, 0.12]], canard: true, intake: 'side', long: 1.2, ventral: true }); },
+  // 유로파이터·라팔: 델타 날개 + 카나드, 단일 수직꼬리
+  euro() { return jetBody({ fat: 0.95, twin: true, fins: 'single', wing: [[0.1, 0.08], [-0.5, 0.58], [-0.56, 0.58], [-0.56, 0.1]], canard: true, intake: 'chin' }); },
+
+  // ---------------- 군함 ----------------
+  // 미국 알레이 버크급: 경사 마스트, 연돌 2개, SPY-1 판
+  burke() { return shipBody({ mast: 'lattice', stacks: 2, panels: 'spy', guns: 1 }); },
+  // 중국 055형: 대형 선체, 일체형 탑 마스트에 대형 레이더판, 넓은 연돌 1개, 수직발사대 다수
+  type055() { return shipBody({ mast: 'tower', stacks: 1, panels: 'big', guns: 1, len: 1.12, vls: 3 }); },
+  // 러시아 슬라바급: 갑판 양옆의 대형 대함미사일 발사관, 높은 구조물
+  slava() { return shipBody({ mast: 'lattice', stacks: 2, panels: 'dome', guns: 1, tubes: true }); },
+  // 영국 45형: 높은 피라미드 마스트 꼭대기의 구형 레이더
+  type45() { return shipBody({ mast: 'sphere', stacks: 1, panels: 'none', guns: 1 }); },
+  // 일반 호위함: 작은 선체, 함포 1문, 마스트 1개
+  frigate() { return shipBody({ mast: 'lattice', stacks: 1, panels: 'none', guns: 1, len: 0.8, vls: 1 }); },
+});
+
+function jetBody(o) {
+  const g = [], skin = C.jet, L = o.long || 1;
+  g.push(part(lathe([[-0.72, 0.07], [-0.55, 0.1], [-0.1, 0.11], [0.25, 0.1], [0.5, 0.07], [0.7, 0.035], [0.84, 0.0]], 18), skin, M(0, 0, 0, 0, 0, 0, L, 0.75 * o.fat, 1.2 * o.fat)));
+  g.push(part(sph(0.075, 16, 10), C.glassB, M(0.4 * L, 0.065 * o.fat, 0, 0, 0, 0, 2.4, 0.9, 0.8)));
+  if (o.intake === 'chin') g.push(part(box(0.3, 0.07, 0.11), C.jet2, M(0.1, -0.09, 0)));
+  if (o.intake === 'side') for (const z of [-0.1, 0.1]) g.push(part(side([[0.25, -0.06], [0.05, -0.08], [-0.25, -0.07], [-0.25, 0.03], [0.1, 0.03], [0.28, 0.0]], 0.07), C.jet2, M(0, 0, z * o.fat)));
+  if (o.intake === 'under') for (const z of [-0.09, 0.09]) g.push(part(box(0.35, 0.07, 0.08), C.jet2, M(-0.05, -0.09, z)));
+  const plate = (pts, t, sgn) => { const g2 = new THREE.ExtrudeGeometry(new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, z * sgn))), { depth: t, bevelEnabled: true, bevelSize: t * 0.3, bevelThickness: t * 0.3, bevelSegments: 1 }); g2.rotateX(H); g2.translate(0, t / 2, 0); return g2; };
+  for (const sg of [1, -1]) {
+    g.push(part(plate(o.wing, 0.018, sg), skin, M(0, -0.01, 0)));
+    if (o.canard) g.push(part(plate([[0.45, 0.06], [0.32, 0.24], [0.26, 0.24], [0.3, 0.06]], 0.01, sg), skin, M(0, 0.01, 0)));
+    else g.push(part(plate([[-0.52, 0.08], [-0.7, 0.34], [-0.8, 0.34], [-0.78, 0.08]], 0.012, sg), skin, M(0, -0.02, 0)));
+  }
+  const fin = side([[-0.45, 0.0], [-0.66, 0.3], [-0.76, 0.3], [-0.72, 0.0]], 0.012);
+  if (o.fins === 'single') g.push(part(fin.clone(), skin, M(0, 0.04, 0, 0, 0, 0, 1, 1.2, 1)));
+  if (o.fins === 'canted') { g.push(part(fin.clone(), skin, M(0, 0.03, 0.09, -0.35))); g.push(part(fin.clone(), skin, M(0, 0.03, -0.09, 0.35))); }
+  if (o.fins === 'upright') { g.push(part(fin.clone(), skin, M(0, 0.03, 0.14))); g.push(part(fin.clone(), skin, M(0, 0.03, -0.14))); }
+  if (o.fins === 'small') { g.push(part(fin.clone(), skin, M(0.02, 0.03, 0.08, -0.4, 0, 0, 0.8, 0.7, 1))); g.push(part(fin.clone(), skin, M(0.02, 0.03, -0.08, 0.4, 0, 0, 0.8, 0.7, 1))); }
+  if (o.ventral) for (const z of [-0.06, 0.06]) g.push(part(side([[-0.5, 0], [-0.7, -0.12], [-0.76, -0.12], [-0.72, 0]], 0.01), skin, M(0, -0.03, z)));
+  if (o.twin === 'wide') for (const z of [-0.1, 0.1]) { g.push(part(cyl(0.06, 0.055, 0.6, 14), C.jet2, M(-0.45, -0.02, z, 0, 0, H))); g.push(part(cyl(0.05, 0.045, 0.1, 14), C.gun, M(-0.78, -0.02, z, 0, 0, H))); }
+  else if (o.twin) for (const z of [-0.05, 0.05]) g.push(part(cyl(0.048, 0.043, 0.1, 14), C.gun, M(-0.78, -0.01, z, 0, 0, H)));
+  else g.push(part(cyl(0.06, 0.05, 0.12, 14), C.gun, M(-0.78, -0.01, 0, 0, 0, H)));
+  if (o.stinger) g.push(part(cyl(0.02, 0.035, 0.2, 10), skin, M(-0.86, 0.0, 0, 0, 0, H)));
+  for (const z of [-0.4, 0.4, -0.25, 0.25]) g.push(part(cyl(0.014, 0.014, 0.28, 8), C.white, M(-0.12, -0.05, z, 0, 0, H)));
+  g.push(part(box(0.12, 0.004, 0.12), 0xffffff, M(-0.2, 0.006, 0.45), TINT)); g.push(part(box(0.12, 0.004, 0.12), 0xffffff, M(-0.2, 0.006, -0.45), TINT));
+  return mergeGeometries(g).scale(1.25, 1.25, 1.25);
+}
+
+function shipBody(o) {
+  const g = [], L = o.len || 1;
+  const hull = top([[1.12, 0], [0.8, -0.14], [0.2, -0.19], [-0.9, -0.18], [-1.02, -0.14], [-1.02, 0.14], [-0.9, 0.18], [0.2, 0.19], [0.8, 0.14]], 0.26);
+  const p = hull.attributes.position;
+  for (let i = 0; i < p.count; i++) { const y = p.getY(i); if (y < 0.01) p.setZ(i, p.getZ(i) * 0.45); if (p.getX(i) > 0.7 && y > 0.2) p.setY(i, y + (p.getX(i) - 0.7) * 0.12); }
+  hull.computeVertexNormals();
+  g.push(part(hull, C.navy, M(0, -0.08, 0)));
+  g.push(part(box(2.0, 0.03, 0.34), C.red, M(-0.03, -0.05, 0)));
+  g.push(part(box(1.9, 0.015, 0.34), C.deck, M(-0.05, 0.185, 0)));
+  g.push(part(top([[0.42, -0.12], [0.1, -0.15], [-0.3, -0.15], [-0.3, 0.15], [0.1, 0.15], [0.42, 0.12]], 0.2, 0.01), C.navy, M(0, 0.19, 0)));
+  g.push(part(top([[0.3, -0.1], [0.05, -0.12], [-0.14, -0.12], [-0.14, 0.12], [0.05, 0.12], [0.3, 0.1]], 0.14, 0.01), C.navy, M(0, 0.4, 0)));
+  g.push(part(box(0.02, 0.035, 0.22), C.glassB, M(0.31, 0.5, 0, 0, 0, -0.3)));
+  if (o.panels === 'spy') for (const [x, z, ry] of [[0.22, 0.12, 0.6], [0.22, -0.12, -0.6], [-0.1, 0.13, 2.5], [-0.1, -0.13, -2.5]]) g.push(part(cyl(0.07, 0.07, 0.012, 8), C.navy2, M(x, 0.45, z, H, ry, 0)));
+  if (o.panels === 'dome') for (const x of [0.1, -0.2]) g.push(part(sph(0.07, 12, 8), C.white, M(x, 0.58, 0)));
+  if (o.mast === 'lattice') { g.push(part(cyl(0.02, 0.06, 0.34, 4), C.navy, M(-0.05, 0.7, 0, 0, PI / 4, -0.12))); g.push(part(box(0.18, 0.025, 0.03), C.dark, M(-0.08, 0.82, 0))); }
+  if (o.mast === 'tower') {
+    g.push(part(top([[0.12, -0.1], [-0.12, -0.1], [-0.12, 0.1], [0.12, 0.1]], 0.36, 0.01), C.navy, M(0, 0.54, 0)));
+    for (const [z, ry] of [[0.105, 0], [-0.105, PI]]) g.push(part(box(0.2, 0.22, 0.01), C.navy2, M(0, 0.72, z, 0, ry, 0)));
+    g.push(part(box(0.01, 0.22, 0.18), C.navy2, M(0.125, 0.72, 0)));
+  }
+  if (o.mast === 'sphere') { g.push(part(cyl(0.02, 0.08, 0.42, 4), C.navy, M(0.02, 0.75, 0, 0, PI / 4, 0))); g.push(part(sph(0.07, 14, 10), C.white, M(0.02, 1.0, 0))); }
+  for (let k = 0; k < o.stacks; k++) g.push(part(top([[0.06, -0.08], [-0.06, -0.08], [-0.06, 0.08], [0.06, 0.08]], 0.18), C.navy2, M(-0.4 - k * 0.17, 0.19, 0, 0, 0, o.stacks > 1 ? 0 : 0, o.panels === 'big' ? 1.5 : 1, 1, o.panels === 'big' ? 1.3 : 1)));
+  g.push(part(top([[0.1, -0.06], [-0.08, -0.08], [-0.08, 0.08], [0.1, 0.06]], 0.07, 0.01), C.navy, M(0.78, 0.19, 0)));
+  g.push(part(cyl(0.012, 0.014, 0.28, 8), C.gun, M(0.98, 0.235, 0, 0, 0, H)));
+  const vls = o.vls ?? 2;
+  for (let b = 0; b < vls; b++) for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) g.push(part(box(0.045, 0.012, 0.045), C.dark, M((b === 1 ? -0.72 : 0.5 - b * 0.16) + i * 0.05, 0.198, -0.05 + j * 0.05)));
+  if (o.tubes) for (const z of [-0.2, 0.2]) for (let i = 0; i < 4; i++) g.push(part(cyl(0.035, 0.035, 0.32, 10), C.navy2, M(0.3 - i * 0.02, 0.28, z * (1 + i * 0.02), 0, 0, H + 0.3 * Math.sign(z) * 0 - 0.25)));
+  g.push(part(box(0.24, 0.1, 0.24), C.navy, M(-0.75, 0.24, 0)));
+  g.push(part(cyl(0.09, 0.09, 0.004, 20), C.white, M(-0.93, 0.194, 0)));
+  g.push(part(box(0.2, 0.1, 0.005), 0xffffff, M(-0.05, o.mast === 'sphere' ? 1.12 : 0.93, 0.02), TINT));
+  return mergeGeometries(g).scale(0.95 * L, 0.95 * Math.max(0.9, L), 0.95 * L);
+}
+
+// ---------------- 나라별 편제 ----------------
+// camo: 위장색 체계 (base 주색, dark 보조색, pat 1=얼룩 2=디지털)
+const SCHEMES = {
+  kr: { base: 0x56613a, dark: 0x434b2c, pat: 1 }, us: { base: 0xa99468, dark: 0x8a7650, pat: 1 }, ru: { base: 0x4c5a36, dark: 0x3a4529, pat: 1 },
+  cn: { base: 0x5a6443, dark: 0x464f33, pat: 2 }, jp: { base: 0x5b5a3b, dark: 0x4a3f2c, pat: 1 }, eu: { base: 0x4c563a, dark: 0x3b3326, pat: 1 },
+  il: { base: 0x817d62, dark: 0x6c6951, pat: 0 }, desert: { base: 0xb09a6c, dark: 0x927e56, pat: 1 }, kp: { base: 0x4e5a3a, dark: 0x3f4a2f, pat: 0 },
+  arctic: { base: 0x8a9096, dark: 0x6b7178, pat: 1 }, jungle: { base: 0x445536, dark: 0x2f3c26, pat: 1 },
+};
+const LOAD = {
+  KR: ['k2', 'kf21', 'sejong', 'kr'], US: ['abrams', 'f35', 'burke', 'us'], CN: ['type99', 'j20', 'type055', 'cn'], RU: ['t90', 'su35', 'slava', 'ru'],
+  JP: ['type10', 'f35', 'burke', 'jp'], KP: ['t62', 'mig29', 'frigate', 'kp'], TW: ['abrams', 'f16', 'frigate', 'kr'], IL: ['merkava', 'f35', 'frigate', 'il'],
+  GB: ['leo2', 'euro', 'type45', 'eu'], FR: ['leo2', 'euro', 'frigate', 'eu'], DE: ['leo2', 'euro', 'frigate', 'eu'], IT: ['leo2', 'euro', 'frigate', 'eu'], ES: ['leo2', 'euro', 'frigate', 'eu'],
+  AU: ['abrams', 'f35', 'frigate', 'desert'], SA: ['abrams', 'f16', 'frigate', 'desert'], AE: ['leo2', 'f16', 'frigate', 'desert'], EG: ['abrams', 'f16', 'frigate', 'desert'],
+  IQ: ['abrams', 'f16', 'frigate', 'desert'], JO: ['t62', 'f16', 'frigate', 'desert'], KW: ['abrams', 'f16', 'frigate', 'desert'], QA: ['leo2', 'euro', 'frigate', 'desert'],
+  TR: ['leo2', 'f16', 'frigate', 'eu'], PL: ['abrams', 'f35', 'frigate', 'eu'], IN: ['t90', 'su35', 'frigate', 'jungle'], PK: ['type99', 'f16', 'frigate', 'desert'],
+  IR: ['t62', 'mig29', 'frigate', 'desert'], SY: ['t62', 'mig29', 'frigate', 'desert'], VN: ['t90', 'su35', 'frigate', 'jungle'], BY: ['t90', 'mig29', 'frigate', 'ru'],
+  UA: ['t90', 'mig29', 'frigate', 'ru'], KZ: ['t90', 'mig29', 'frigate', 'ru'], DZ: ['t90', 'su35', 'frigate', 'desert'], MM: ['type99', 'mig29', 'frigate', 'jungle'],
+  TH: ['type99', 'f16', 'frigate', 'jungle'], PH: ['leo2', 'f16', 'frigate', 'jungle'], ID: ['leo2', 'f16', 'frigate', 'jungle'], MY: ['leo2', 'mig29', 'frigate', 'jungle'],
+  SG: ['leo2', 'f16', 'frigate', 'jungle'], CA: ['leo2', 'f35', 'frigate', 'arctic'], NO: ['leo2', 'f35', 'frigate', 'arctic'], SE: ['leo2', 'euro', 'frigate', 'arctic'],
+  FI: ['leo2', 'f16', 'frigate', 'arctic'], MN: ['t62', 'mig29', 'frigate', 'ru'], CU: ['t62', 'mig29', 'frigate', 'jungle'], VE: ['t90', 'su35', 'frigate', 'jungle'],
+  BR: ['leo2', 'euro', 'frigate', 'jungle'], MX: ['leo2', 'f16', 'frigate', 'desert'], AR: ['leo2', 'f16', 'frigate', 'eu'], CL: ['leo2', 'f16', 'frigate', 'eu'],
+};
+let NATION_POS = new Map();
+export function setNationInfo(info) { NATION_POS = info; }
+export function loadout(nid) {
+  const l = LOAD[nid];
+  if (l) return { tank: l[0], jet: l[1], ship: l[2], camo: l[3] };
+  const pos = NATION_POS.get(nid) || { lon: 100, lat: 20 };
+  const west = pos.lon < -30 || (pos.lon > -25 && pos.lon < 40 && pos.lat > 36); // 아메리카·유럽: 서방제, 그 외: 구소련제 수출형
+  const hot = Math.abs(pos.lat) < 32 && !(pos.lon > 90 && pos.lon < 130);
+  const camo = pos.lat > 55 ? 'arctic' : west ? (hot ? 'desert' : 'eu') : (hot ? (pos.lon > 20 && pos.lon < 75 ? 'desert' : 'jungle') : 'ru');
+  return west ? { tank: 'leo2', jet: 'f16', ship: 'frigate', camo } : { tank: 't90', jet: 'mig29', ship: 'frigate', camo };
+}
+
 function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // ---------- 재질: 국가색(tint)과 위장무늬(camo) ----------
@@ -324,8 +579,9 @@ function patch(mat) {
           return mix(mix(mix(h3(i), h3(i+vec3(1,0,0)), f.x), mix(h3(i+vec3(0,1,0)), h3(i+vec3(1,1,0)), f.x), f.y),
                      mix(mix(h3(i+vec3(0,0,1)), h3(i+vec3(1,0,1)), f.x), mix(h3(i+vec3(0,1,1)), h3(i+vec3(1,1,1)), f.x), f.y), f.z); }`)
       .replace('#include <color_fragment>', `#include <color_fragment>
-        if (vCamo > 0.5) { // 3색 위장무늬
-          float n = vn(vObj * 9.0) * 0.65 + vn(vObj * 21.0) * 0.35;
+        if (vCamo > 0.5) { // 위장무늬 (1: 얼룩, 2: 디지털 픽셀)
+          vec3 q = vCamo > 1.5 ? floor(vObj * 38.0) / 4.0 : vObj * 9.0;
+          float n = vn(q) * 0.65 + vn(q * 2.3) * 0.35;
           vec3 base = diffuseColor.rgb;
           diffuseColor.rgb = n < 0.42 ? base : (n < 0.6 ? base * vec3(0.62, 0.6, 0.5) : base * vec3(1.25, 1.12, 0.82));
         }`);
@@ -336,32 +592,46 @@ function patch(mat) {
 export const unitMaterial = patch(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.62, metalness: 0.28 }));
 
 const cache = new Map();
-export function baseGeometry(type) {
-  if (!cache.has(type)) cache.set(type, builders[type]());
-  return cache.get(type);
+// 유닛 종류 + 나라 → 실제 모델 이름과 위장색
+function variantOf(type, nid) {
+  const L = loadout(nid);
+  const model = type === 'tank' ? L.tank : type === 'jet' ? L.jet : type === 'ship' ? L.ship : type;
+  return { model, camo: ['inf', 'tank', 'arty'].includes(type) ? L.camo : '-' };
 }
-// 국가색을 구워 넣은 지오메트리 (개별 유닛용)
-export function geometry(type, nationColor) {
-  const key = type + '|' + nationColor;
+export function baseGeometry(type, nid) {
+  const { model, camo } = variantOf(type, nid);
+  const key = model + '|' + camo;
   if (!cache.has(key)) {
-    const g = baseGeometry(type).clone();
-    const col = new THREE.Color(nationColor), c = g.attributes.color, t = g.attributes.tint;
-    for (let i = 0; i < t.count; i++) if (t.getX(i) > 0.5) c.setXYZ(i, col.r, col.g, col.b);
-    const t2 = g.attributes.tint; for (let i = 0; i < t2.count; i++) t2.setX(i, 0);
+    const S = SCHEMES[camo] || SCHEMES.kr;
+    const g = builders[model](S);
+    if (S.pat !== 1) { const c = g.attributes.camo; for (let i = 0; i < c.count; i++) if (c.getX(i) > 0.5) c.setX(i, S.pat === 2 ? 2 : 0); }
     cache.set(key, g);
   }
   return cache.get(key);
 }
+// 국가색을 구워 넣은 지오메트리 (개별 유닛용)
+export function geometry(type, nationColor, nid) {
+  const { model, camo } = variantOf(type, nid);
+  const key = model + '|' + camo + '|' + nationColor;
+  if (!cache.has(key)) {
+    const g = baseGeometry(type, nid).clone();
+    const col = new THREE.Color(nationColor), c = g.attributes.color, t = g.attributes.tint;
+    for (let i = 0; i < t.count; i++) if (t.getX(i) > 0.5) { c.setXYZ(i, col.r, col.g, col.b); t.setX(i, 0); }
+    cache.set(key, g);
+  }
+  return cache.get(key);
+}
+export function variantKey(type, nid) { const v = variantOf(type, nid); return v.model + '|' + v.camo; }
 
-export function makeUnit(type, nationColor) {
-  const m = new THREE.Mesh(geometry(type, nationColor), unitMaterial);
+export function makeUnit(type, nationColor, nid) {
+  const m = new THREE.Mesh(geometry(type, nationColor, nid), unitMaterial);
   m.castShadow = true;
   return m;
 }
 
 // 대량 배치용 (인스턴스마다 국가색)
-export function makeInstanced(type, max) {
-  const m = new THREE.InstancedMesh(baseGeometry(type), unitMaterial, max);
+export function makeInstanced(type, max, nid) {
+  const m = new THREE.InstancedMesh(baseGeometry(type, nid), unitMaterial, max);
   m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(max * 3), 3);
   m.count = 0; m.castShadow = true; m.frustumCulled = false;
