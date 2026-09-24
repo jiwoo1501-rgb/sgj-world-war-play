@@ -85,14 +85,30 @@ export class WorldMap {
       const g = new THREE.ExtrudeGeometry(shapes, { depth: LAND_H, bevelEnabled: false, curveSegments: 1 });
       g.rotateX(-Math.PI / 2); // (x, -y) 평면 → XZ 평면, 두께는 +Y
       const mat = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.92, metalness: 0.0 });
+      // 전투 중 점령 진행 표시용 (전선 점들로부터 adv 거리 안쪽을 공격국 색으로)
+      mat.userData.u = { uOccN: { value: 0 }, uOccPts: { value: Array.from({ length: 24 }, () => new THREE.Vector2()) }, uOccAdv: { value: 0 }, uOccCol: { value: new THREE.Color() }, uTimeL: this.time };
       mat.onBeforeCompile = (s) => {
+        Object.assign(s.uniforms, mat.userData.u);
         s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;')
           .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvW = (modelMatrix * vec4(transformed,1.0)).xyz;');
-        s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;\n' + noiseChunk)
+        s.fragmentShader = s.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vW;\nuniform int uOccN; uniform vec2 uOccPts[24]; uniform float uOccAdv; uniform vec3 uOccCol; uniform float uTimeL;\n' + noiseChunk)
           .replace('#include <color_fragment>', `#include <color_fragment>
             float t = fbm(vW.xz * 0.9);
             float t2 = fbm(vW.xz * 4.0);
             diffuseColor.rgb *= 0.78 + 0.34 * t + 0.1 * (t2 - 0.5);
+            if (uOccN > 0) {
+              float md = 1e9;
+              for (int i = 0; i < 24; i++) { if (i >= uOccN) break; md = min(md, distance(vW.xz, uOccPts[i])); }
+              // 경계를 불규칙하게 (작전 지역처럼)
+              float edge = uOccAdv - md + (fbm(vW.xz * 1.3) - 0.5) * 0.9 * min(1.0, uOccAdv);
+              if (edge > 0.0) {
+                float stripe = step(0.55, fract((vW.x - vW.z) * 2.2));
+                vec3 oc = uOccCol * (0.78 + 0.34 * t) * (1.0 - 0.18 * stripe);
+                diffuseColor.rgb = mix(diffuseColor.rgb, oc, 0.9);
+              }
+              float glow = smoothstep(0.32, 0.0, abs(edge)) * step(0.02, uOccAdv);
+              diffuseColor.rgb += vec3(1.0, 0.42, 0.1) * glow * (0.55 + 0.45 * sin(uTimeL * 9.0 + md * 5.0));
+            }
             if (vW.y < ${(LAND_H - 0.01).toFixed(3)}) diffuseColor.rgb *= 0.55;`);
       };
       mat.customProgramCacheKey = () => 'land';
@@ -130,6 +146,19 @@ export class WorldMap {
     this.group.add(this.highlight);
   }
 
+  // ---------- 점령 진행 ----------
+  setOcc(idx, pts, color) {
+    const u = this.meshes[idx].material.userData.u;
+    const step = Math.max(1, Math.ceil(pts.length / 24));
+    let n = 0; for (let i = 0; i < pts.length && n < 24; i += step) u.uOccPts.value[n++].set(pts[i].x, pts[i].z);
+    u.uOccN.value = n; u.uOccCol.value.set(color); u.uOccAdv.value = 0;
+    this.meshes[idx].material.userData.fade = false;
+  }
+  hasOcc(idx) { return this.meshes[idx].material.userData.u.uOccN.value > 0; }
+  setOccAdv(idx, adv) { this.meshes[idx].material.userData.u.uOccAdv.value = adv; }
+  clearOcc(idx) { const u = this.meshes[idx].material.userData.u; u.uOccN.value = 0; u.uOccAdv.value = 0; this.meshes[idx].material.userData.fade = false; }
+  fadeOcc(idx) { if (this.meshes[idx].material.userData.u.uOccN.value > 0) this.meshes[idx].material.userData.fade = true; } // 격퇴되면 서서히 되돌림
+
   setColor(idx, color, tween = false) {
     const mat = this.meshes[idx].material;
     const target = new THREE.Color(color);
@@ -140,6 +169,8 @@ export class WorldMap {
   update(dt) {
     this.time.value += dt;
     for (const m of this.meshes) {
+      const ud = m.material.userData;
+      if (ud.fade) { ud.u.uOccAdv.value -= dt * 3; if (ud.u.uOccAdv.value <= 0) this.clearOcc(m.userData.idx); }
       const tw = m.material.userData.tween;
       if (!tw) continue;
       tw.t = Math.min(1, tw.t + dt / 1.2);

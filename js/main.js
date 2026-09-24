@@ -183,7 +183,9 @@ function moveNationVis(n) { const v = nationVis.get(n.id); const t = game.territ
 function removeNationVis(n) { const v = nationVis.get(n.id); if (!v) return; v.lab.element.remove(); scene.remove(v.g); nationVis.delete(n.id); }
 
 function onCapture({ t, from, to }) {
-  map.setColor(t.idx, landColor(to), true);
+  // 점령 진행 중이던 땅은 이미 공격국 색이므로 바로 확정, 아니면 깜빡이며 전환
+  map.setColor(t.idx, landColor(to), !map.hasOcc(t.idx));
+  map.clearOcc(t.idx);
   const mine = to.id === ui.me.id || from.id === ui.me.id;
   for (let i = 0; i < 4; i++) setTimeout(() => {
     fx.explosion(t.cx + (Math.random() - 0.5) * 1.5, tY(t.idx), t.cy + (Math.random() - 0.5) * 1.5, 1.1);
@@ -237,7 +239,10 @@ function buildExp(e) {
   if (e.kind === 'missile') members.forEach((m, i) => { m.userData.delay = i * 0.12; });
 }
 function clearFront(v) {
-  if (v.fl) { v.fl.dispose(); v.fl = null; }
+  if (v.fl) { v.fl.dispose(); v.fl = null; map.fadeOcc(v.e.target); }
+  clearModels(v);
+}
+function clearModels(v) {
   if (v.defs) { scene.remove(v.defs); v.defs = null; }
   if (v.landers) { v.landers.forEach((m) => v.g.remove(m)); v.landers = null; }
   if (v.arty) { v.arty.forEach((m) => v.g.remove(m)); v.arty = null; }
@@ -260,11 +265,16 @@ function updateArrows(dt) {
 }
 
 // 전투가 시작되면 실제 국경을 따라 전선을 긋고 양측 병력을 전선에 흩어 배치
+// (전선과 점령 진행은 모든 전투에, 3D 병력은 카메라 근처 전투에만)
 function setupFront(v) {
   const e = v.e;
   const front = computeFront(world, e.src, e.target, e.kind, { x: e.from.x, z: e.from.y });
   v.fl = new FrontLine(scene, front, tY(e.target) + 0.06);
   v.def0 = Math.max(0.01, e.def);
+  map.setOcc(e.target, front.pts, landColor(game.nations.get(e.owner)));
+}
+function setupFrontModels(v) {
+  const e = v.e;
   const D = game.nations.get(e.defender);
   v.defs = new THREE.Group();
   const nd = Math.min(9, Math.max(2, Math.ceil(v.def0 / 18)));
@@ -305,8 +315,16 @@ function updateExp(v, dt, time) {
   v.g.visible = near || e.kind === 'missile';
   const alive = Math.max(1, Math.ceil(v.members.length * Math.min(1, pw / (v.pw0 ||= pw || 1)) + 0.001));
   const battle = e.state === 'battle' && (e.kind === 'land' || e.kind === 'sea');
-  if (battle && near && !v.fl) setupFront(v);
+  if (battle && !v.fl) setupFront(v);
   if (!battle && v.fl) clearFront(v);
+  if (v.fl && near && !v.defs) setupFrontModels(v);
+  if (v.fl && !near && v.defs) clearModels(v);
+  if (v.fl) { // 점령 진행: 방어력이 깎인 만큼 전선에서부터 땅이 넘어감
+    const prog = THREE.MathUtils.clamp(1 - e.def / v.def0, 0, 1);
+    const target = v.fl.front.reach * Math.pow(prog, 0.85);
+    v.fl.adv += (target - v.fl.adv) * Math.min(1, dt * 2.5);
+    map.setOccAdv(e.target, v.fl.adv);
+  }
   const push = v.fl ? THREE.MathUtils.clamp(1 - e.def / v.def0, 0, 1) * 0.9 : 0;
   const pts = v.fl?.front.pts;
   const slotPt = (slot, side, extra = 0) => {
@@ -368,8 +386,8 @@ function updateExp(v, dt, time) {
       m.position.set(x + nx * s, 0.16, z + nz * s); m.rotation.set(0, Math.atan2(nz, -nx), 0);
       m.visible = i < vis;
     });
-    v.fl.update(dt, push);
   }
+  if (v.fl) v.fl.update(dt, push);
   if (v.arty) v.arty.forEach((m) => { const [x, z, nx, nz] = slotPt(m.userData.slot, -1, e.kind === 'sea' ? 1.2 : 2.6); m.position.set(x, 0.16, z); m.rotation.set(0, Math.atan2(-nz, nx), 0); });
   const center = v.fl ? slotPt(0.5, 0) : [cx, cz];
   v.lab.position.set(center[0] - v.g.position.x, (e.kind === 'air' ? 4 : 1.4), center[1] - v.g.position.z);

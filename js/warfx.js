@@ -107,7 +107,28 @@ export function computeFront(world, srcIdx, tgtIdx, kind, from) {
     const l = Math.hypot(sx, sz) || 1; pts[i].snx = sx / l; pts[i].snz = sz / l;
   }
   const maxPush = Math.min(2.2, Math.hypot(T.cx - anchor[0], T.cy - anchor[1]) * 0.7);
-  return { pts: pts.length > 60 ? pts.filter((_, i) => i % Math.ceil(pts.length / 60) === 0) : pts, anchor, maxPush };
+  const P = pts.length > 60 ? pts.filter((_, i) => i % Math.ceil(pts.length / 60) === 0) : pts;
+  // 각 점에서 안쪽 방향으로 영토를 벗어나기까지의 거리 (병력이 바다로 나가지 않게)
+  const edges = [];
+  for (const r of T.rings) for (let k = 0; k < r.length; k += 2) { const j = (k + 2) % r.length; edges.push(r[k], r[k + 1], r[j], r[j + 1]); }
+  for (const p of P) {
+    let best = 60;
+    for (let k = 0; k < edges.length; k += 4) {
+      const ex = edges[k + 2] - edges[k], ez = edges[k + 3] - edges[k + 1];
+      const den = p.snx * ez - p.snz * ex; if (Math.abs(den) < 1e-9) continue;
+      const qx = edges[k] - p.x, qz = edges[k + 1] - p.z;
+      const t = (qx * ez - qz * ex) / den, u = (qx * p.snz - qz * p.snx) / den;
+      if (t > 0.15 && u >= 0 && u <= 1 && t < best) best = t;
+    }
+    p.lim = best;
+  }
+  // 영토 전체를 덮는 데 필요한 진격 거리 (가장 먼 지점까지)
+  let reach = 1;
+  for (let k = 0; k < edges.length; k += 8) {
+    let md = Infinity; for (const p of P) md = Math.min(md, Math.hypot(edges[k] - p.x, edges[k + 1] - p.z));
+    if (md < 80) reach = Math.max(reach, md);
+  }
+  return { pts: P, anchor, maxPush, reach: reach * 1.05 };
 }
 
 // ---------- 전선 불꽃 띠 ----------
@@ -144,18 +165,19 @@ export class FrontLine {
     this.mesh = new THREE.Mesh(g, new THREE.ShaderMaterial({ vertexShader: arrowVS, fragmentShader: frontFS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, uniforms: { uTime: this.uTime } }));
     this.mesh.renderOrder = 2; this.mesh.frustumCulled = false;
     scene.add(this.mesh);
-    this.alpha = 0;
+    this.alpha = 0; this.adv = 0;
   }
   // push: 0~1 (공격군이 밀고 들어간 정도)
   place(i, push, side) { // side: -1 공격군 쪽, +1 방어군 쪽
-    const p = this.front.pts[i]; const d = push * this.front.maxPush + side * 0.42;
+    const p = this.front.pts[i]; const a = Math.min(this.adv, p.lim - 0.2);
+    let d = a + side * 0.42; if (side > 0) d = Math.min(d, p.lim - 0.1);
     return [p.x + p.snx * d, p.z + p.snz * d, p.snx, p.snz];
   }
   update(dt, push) {
     this.uTime.value += dt;
     const w = 0.22 + 0.06 * Math.sin(this.uTime.value * 3);
     this.front.pts.forEach((p, i) => {
-      const d = push * this.front.maxPush;
+      const d = Math.max(0, Math.min(this.adv, p.lim - 0.2));
       const x = p.x + p.snx * d, z = p.z + p.snz * d;
       // 전선 방향에 수직(=법선)으로 폭을 준다
       this.pos.set([x - p.snx * w, this.y, z - p.snz * w, x + p.snx * w, this.y, z + p.snz * w], i * 6);
