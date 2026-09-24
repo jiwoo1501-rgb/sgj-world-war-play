@@ -47,6 +47,13 @@ export class FX {
     this.tracers = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
     this.tracers.frustumCulled = false; this.tracers.renderOrder = 5; scene.add(this.tracers);
     this.burns = [];
+    this.shells = [];
+  }
+
+  // 포탄: 포물선으로 날아가 떨어지면 onLand 호출
+  shell(x1, y1, z1, x2, y2, z2, dur, onLand) {
+    if (this.shells.length > 80) return;
+    this.shells.push({ x1, y1, z1, x2, y2, z2, t: 0, dur, h: 1.2 + Math.hypot(x2 - x1, z2 - z1) * 0.35, onLand });
   }
 
   shockwave(x, y, z, s = 1) {
@@ -136,6 +143,14 @@ export class FX {
       this.trCol[i * 6] = this.trCol[i * 6 + 3] = b; this.trCol[i * 6 + 1] = this.trCol[i * 6 + 4] = b * 0.85; this.trCol[i * 6 + 2] = this.trCol[i * 6 + 5] = b * 0.4;
     }
     this.tracers.geometry.attributes.position.needsUpdate = this.tracers.geometry.attributes.color.needsUpdate = true;
+    this.shells = this.shells.filter((sh) => {
+      sh.t += dt; const k = Math.min(1, sh.t / sh.dur);
+      const x = sh.x1 + (sh.x2 - sh.x1) * k, z = sh.z1 + (sh.z2 - sh.z1) * k, y = sh.y1 + (sh.y2 - sh.y1) * k + Math.sin(Math.PI * k) * sh.h;
+      this.emit(1, x, y, z, 0, 0, 0, 0.06, 0.12);
+      if (Math.random() < 0.5) this.emit(2, x, y, z, 0, 0.05, 0, 0.6, 0.05, 0.12);
+      if (k >= 1) { sh.onLand?.(x, y, z); return false; }
+      return true;
+    });
     this.burns = this.burns.filter((b) => {
       b.t -= dt;
       if (Math.random() < 0.5) this.emit(2, b.x + (Math.random() - 0.5) * 0.3 * b.s, b.y + 0.1, b.z + (Math.random() - 0.5) * 0.3 * b.s, 0.05, 0.6 + Math.random() * 0.4, 0, 2.5, 0.25 * b.s, 0.5 * b.s);

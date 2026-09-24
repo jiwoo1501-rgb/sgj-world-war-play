@@ -6,6 +6,7 @@ import { WorldMap, LAND_H } from './map.js';
 import { makeUnit, makeFlag, flagTime } from './models.js';
 import { FX } from './fx.js';
 import { makeArrow, computeFront, FrontLine } from './warfx.js';
+import { WarMap } from './warmap.js';
 import { UI } from './ui.js';
 import { Sound } from './audio.js';
 
@@ -100,7 +101,8 @@ function setView(x, z, d, animate = true) {
 }
 
 // ---------- 게임 ----------
-let game = null, speed = 1, acc = 0;
+let game = null, speed = 1, acc = 0, warMap = null;
+const strikes = []; // 전투기 폭격 연출
 const nationVis = new Map();   // 나라별 수도 도시·국기·주둔군·라벨
 const expVis = new Map();      // 원정군 3D 그룹
 const occFlags = new Map();    // 점령지에 꽂힌 국기
@@ -113,6 +115,12 @@ ui.showStart((opts) => {
   game = new Game(world, opts);
   for (const t of game.territories) map.setColor(t.idx, landColor(game.nations.get(t.owner)));
   for (const n of game.nations.values()) buildNationVis(n);
+  warMap = new WarMap(scene, world, game, { tY, makeUnit, U, fx, sound, sfxAt });
+  game.on('war', () => { warMap.dirty = true; });
+  game.on('peace', () => { warMap.dirty = true; });
+  game.on('capture', ({ from, to }) => { warMap.dirty = true; warMap.markNames(from.id, to.id); });
+  game.on('eliminated', (n) => { warMap.dirty = true; warMap.markNames(n.id); });
+  game.on('capital', (n) => warMap.markNames(n.id));
   game.on('log', (l) => { ui.log(l); if (l.kind === 'danger' && /진격|상륙|공습|발사/.test(l.msg)) sound.alarm(); });
   game.on('launch', (e) => {
     buildExp(e);
@@ -138,6 +146,8 @@ ui.showStart((opts) => {
     setSpeed: (s) => { speed = s; ui.setSpeed(s); },
     flyHome: () => { const c = game.territories[ui.me.capital]; setView(c.cx, c.cy, 30); },
     select: (i) => select(i),
+    flyTo: (at) => setView(at.x, at.z, 16),
+    battleCam: () => battleCam(),
   });
   ui.setSpeed(1);
   const me = game.nations.get(opts.player);
@@ -392,6 +402,25 @@ function updateExp(v, dt, time) {
       }
       if (v.fl && Math.random() < 0.12) { const [x, z] = slotPt(Math.random(), 0.3); fx.burn(x, ty, z, 5, 0.55); }
     }
+    // 포병 사격: 후방에서 포탄이 날아가 적진에 떨어짐 (방어군도 반격)
+    v.artT = (v.artT ?? 0.5) - dt;
+    if (v.fl && v.artT <= 0) {
+      v.artT = 0.9 + Math.random() * 1.6;
+      const ty = tY(e.target);
+      const own = Math.random() < 0.7;
+      const [sx, sz] = slotPt(Math.random(), own ? -1 : 1, own ? 3.2 : -3.2);
+      const [tx, tz] = slotPt(Math.random(), own ? 1.9 + Math.random() : -1.6 - Math.random());
+      fx.muzzle(sx, ty + 0.2, sz);
+      const [vv, pp] = sfxAt(sx, sz); sound.cannon(vv * 0.6, pp);
+      fx.shell(sx, ty + 0.2, sz, tx, ty, tz, 1.1 + Math.random() * 0.4, (x, y, z) => {
+        fx.explosion(x, y, z, 0.8); const [v2, p2] = sfxAt(x, z); sound.explosion(v2 * 0.8, p2, 0.9); shakeAt(x, z, 0.15);
+      });
+      const [v3, p3] = sfxAt(tx, tz); if (v3 > 0.5) setTimeout(() => sound.whistle(v3, p3), 250);
+    }
+    // 공군 지원: 공격국에 전투기가 있으면 주기적으로 폭격
+    v.airT = (v.airT ?? 3 + Math.random() * 4) - dt;
+    const A = game.nations.get(e.owner);
+    if (v.fl && v.airT <= 0 && A.units.jet >= 1) { v.airT = 7 + Math.random() * 7; airStrike(v, A); }
   }
 }
 
@@ -449,6 +478,8 @@ function frame(forceDt) {
   if (game) {
     for (const v of expVis.values()) updateExp(v, dt, time);
     updateArrows(dt);
+    warMap?.update(dt, camD, controls.target);
+    updateStrikes(dt);
     uiT -= dt; if (uiT <= 0) { uiT = 0.25; ui.refresh(); }
     labT -= dt; if (labT <= 0) { labT = 0.3; updateLabels(camD); }
   }
@@ -465,6 +496,7 @@ function frame(forceDt) {
   if (saved) camera.position.copy(saved);
 }
 renderer.setAnimationLoop(() => frame());
+window.__sgj.fx = fx; window.__sgj.strikes = strikes;
 window.__sgj.view = (x, z, d) => setView(x, z, d, false);
 window.__sgj.frame = (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) frame(dt); };
 
@@ -474,7 +506,7 @@ function updateLabels(camD) {
     const pw = game.armyPow(n) * n.tech;
     v.pw.textContent = pw >= 1000 ? (pw / 1000).toFixed(1) + 'k' : Math.round(pw);
     const big = n.gdp * n.bal.eco;
-    const show = n.isPlayer || camD < 45 || (camD < 110 && big > 250) || big > 1500 || (camD < 70 && big > 60);
+    const show = n.isPlayer || camD < 45 || (camD < 90 && big > 250) || (camD < 70 && big > 60);
     v.lab.visible = show;
     v.gar.scale.setScalar(THREE.MathUtils.clamp(0.6 + Math.log10(pw + 1) * 0.28, 0.6, 1.8));
   }
@@ -488,4 +520,54 @@ function updateMusic() {
     if (e.state === 'battle' && sfxAt(e.to.x, e.to.y)[0] > 0.2) near++;
   }
   sound.setIntensity(game.over ? 0 : 0.2 + Math.min(3, mine) * 0.22 + Math.min(4, near) * 0.06);
+}
+
+// 전투기가 전선을 가로질러 날며 폭탄을 떨어뜨림
+function airStrike(v, A) {
+  const pts = v.fl.front.pts, e = v.e;
+  const i = Math.floor(Math.random() * pts.length), p = pts[i];
+  const px = -p.snz, pz = p.snx; // 전선 방향
+  const cx = p.x + p.snx * 1.2, cz = p.z + p.snz * 1.2;
+  const dir = Math.random() < 0.5 ? 1 : -1;
+  const from = new THREE.Vector3(cx - px * 8 * dir - p.snx * 5, 2.4, cz - pz * 8 * dir - p.snz * 5);
+  const to = new THREE.Vector3(cx + px * 8 * dir + p.snx * 3, 2.8, cz + pz * 8 * dir + p.snz * 3);
+  const m = makeUnit('jet', A.color); m.scale.setScalar(U);
+  scene.add(m);
+  const [v0, p0] = sfxAt(cx, cz); sound.jet(Math.max(v0, 0.2), p0);
+  strikes.push({ m, from, to, t: 0, dur: 3.2, drops: [0.42, 0.5, 0.58], y: tY(e.target) });
+}
+function updateStrikes(dt) {
+  for (let i = strikes.length - 1; i >= 0; i--) {
+    const s = strikes[i]; s.t += dt; const k = s.t / s.dur;
+    s.m.position.lerpVectors(s.from, s.to, k);
+    const d = s.to.clone().sub(s.from);
+    s.m.rotation.set(Math.sin(k * 6) * 0.15, Math.atan2(-d.z, d.x), 0, 'YZX');
+    if (Math.random() < 0.7) fx.trail(s.m.position.x, s.m.position.y, s.m.position.z);
+    while (s.drops.length && k >= s.drops[0]) {
+      s.drops.shift();
+      const bx = s.m.position.x, bz = s.m.position.z;
+      fx.shell(bx, s.m.position.y - 0.1, bz, bx + d.x * 0.03, s.y, bz + d.z * 0.03, 0.55, (x, y, z) => {
+        fx.explosion(x, y, z, 1.1); fx.burn(x, y, z, 6, 0.7);
+        const [vv, pp] = sfxAt(x, z); sound.explosion(vv, pp, 1.1); shakeAt(x, z, 0.3);
+      });
+    }
+    if (k >= 1) { scene.remove(s.m); strikes.splice(i, 1); }
+  }
+}
+// 🎥 전장 관전: 진행 중인 전투를 차례로 비춤 (우리나라 전투 우선)
+let camIdx = 0;
+function battleCam() {
+  const list = [...expVis.values()].filter((v) => v.e.state === 'battle' || v.e.state === 'move')
+    .sort((a, b) => ((b.e.owner === ui.me.id || b.e.defender === ui.me.id) - (a.e.owner === ui.me.id || a.e.defender === ui.me.id)) || ((b.e.state === 'battle') - (a.e.state === 'battle')));
+  if (!list.length) {
+    const c = warMap?.counters?.[Math.floor(Math.random() * (warMap.counters.length || 1))];
+    if (c) { setView(c.p.x, c.p.z, 14); return ui.toast('전선을 비춥니다'); }
+    return ui.toast('지금은 진행 중인 전투가 없습니다');
+  }
+  const v = list[camIdx++ % list.length];
+  const e = v.e, A = game.nations.get(e.owner), D = game.nations.get(e.defender);
+  const x = v.fl ? v.fl.front.anchor[0] : e.from.x + (e.to.x - e.from.x) * e.p;
+  const z = v.fl ? v.fl.front.anchor[1] : e.from.y + (e.to.y - e.from.y) * e.p;
+  setView(x, z, 12);
+  ui.toast(`🎥 ${A.flag} ${A.name} → ${D.flag} ${D.name} (${list.length}곳 중 ${((camIdx - 1) % list.length) + 1})`);
 }

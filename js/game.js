@@ -45,12 +45,13 @@ export class Game {
     this.territories = world.countries.map((c, i) => ({ ...c, idx: i }));
     this.nations = new Map();
     this.peace = 40; // 시작 후 AI 공격 금지 시간(초)
+    this.wars = new Map(); // 'A|B' → { a, b, since, last }
     this.over = false;
     this.build();
   }
   on(ev, fn) { (this.listeners[ev] ||= []).push(fn); }
   emit(ev, d) { (this.listeners[ev] || []).forEach((f) => f(d)); }
-  log(msg, kind = '') { this.emit('log', { msg, kind, day: this.day }); }
+  log(msg, kind = '', at = null) { this.emit('log', { msg, kind, day: this.day, at }); }
 
   build() {
     const S = this.world.stats;
@@ -155,9 +156,10 @@ export class Game {
     this.expeditions.push(e);
     n.busy++;
     const dn = this.nations.get(T.owner);
+    this.touchWar(n, dn);
     dn.hostile.set(nid, (dn.hostile.get(nid) || 0) + 1);
     const verb = { land: '지상군을 진격시켰습니다', sea: '상륙 함대를 보냈습니다', air: '공습을 개시했습니다', missile: '미사일을 발사했습니다' }[kind];
-    this.log(`${n.flag} ${josa(n.name, '이가')} ${T.name}${T.home !== dn.id || T.owner !== T.a2 ? `(${dn.name})` : ''}에 ${verb}`, dn.isPlayer ? 'danger' : n.isPlayer ? 'mine' : '');
+    this.log(`${n.flag} ${josa(n.name, '이가')} ${T.name}${T.home !== dn.id || T.owner !== T.a2 ? `(${dn.name})` : ''}에 ${verb}`, dn.isPlayer ? 'danger' : n.isPlayer ? 'mine' : '', { x: T.cx, z: T.cy });
     this.emit('launch', e);
     return e;
   }
@@ -192,6 +194,7 @@ export class Game {
       if (!n.isPlayer) this.ai(n, dt);
     }
     for (const e of this.expeditions) this.stepExp(e, dt);
+    if (Math.floor(this.day) !== Math.floor(this.day - dt)) this.checkPeace();
     const done = this.expeditions.filter((e) => e.state === 'done');
     if (done.length) {
       done.forEach((e) => { const n = this.nations.get(e.owner); n.busy = Math.max(0, n.busy - 1); this.emit('end', e); });
@@ -217,7 +220,7 @@ export class Game {
           const dmg = e.units.missile * UNITS.missile.pow * A.tech * A.bal.atk;
           this.killUnits(D, dmg / (D.tech * D.bal.def), (u) => u.cls !== 'strike');
           this.emit('impact', { e, x: T.cx, y: T.cy, n: e.units.missile });
-          this.log(`💥 ${T.name}에 미사일 ${Math.round(e.units.missile)}발 명중`, D.isPlayer ? 'danger' : '');
+          this.log(`💥 ${T.name}에 미사일 ${Math.round(e.units.missile)}발 명중`, D.isPlayer ? 'danger' : '', { x: T.cx, z: T.cy });
           e.state = 'done'; return;
         }
         e.state = 'battle'; e.battleT = 0;
@@ -267,19 +270,46 @@ export class Game {
     e.state = 'done';
     A.coastal = A.coastal || T.coastal;
     this.recalcCap(A); this.recalcCap(D);
+    this.touchWar(A, D);
     this.emit('capture', { t: T, from: D, to: A });
-    this.log(`🚩 ${A.flag} ${josa(A.name, '이가')} ${josa(T.name, '을를')} 점령했습니다`, A.isPlayer ? 'mine' : D.isPlayer ? 'danger' : '');
+    this.log(`🚩 ${A.flag} ${josa(A.name, '이가')} ${josa(T.name, '을를')} 점령했습니다`, A.isPlayer ? 'mine' : D.isPlayer ? 'danger' : '', { x: T.cx, z: T.cy });
     const left = this.owned(D.id);
     if (!left.length) {
       D.alive = false;
       this.log(`☠️ ${D.flag} ${josa(D.name, '이가')} 멸망했습니다`, D.isPlayer ? 'danger' : 'big');
       A.gold += D.gold; D.gold = 0;
+      for (const [k, w] of this.wars) if (w.a === D.id || w.b === D.id) { this.wars.delete(k); this.emit('peace', w); }
       this.emit('eliminated', D);
     } else if (T.idx === D.capital) {
       D.capital = left.sort((a, b) => b.gdp - a.gdp)[0].idx;
       const loot = D.gold * 0.5; D.gold -= loot; A.gold += loot;
       this.log(`🏛️ ${D.name} 수도가 함락되어 ${josa(this.territories[D.capital].name, '으로')} 천도`, 'big');
       this.emit('capital', D);
+    }
+  }
+
+  // ---------- 전쟁 상태 ----------
+  warKey(a, b) { return a < b ? a + '|' + b : b + '|' + a; }
+  atWar(a, b) { return this.wars.has(this.warKey(a, b)); }
+  touchWar(A, D) {
+    const k = this.warKey(A.id, D.id);
+    const w = this.wars.get(k);
+    if (w) { w.last = this.day; return; }
+    const nw = { a: A.id, b: D.id, since: this.day, last: this.day };
+    this.wars.set(k, nw);
+    this.log(`⚔️ ${A.flag} ${josa(A.name, '이가')} ${D.flag} ${D.name}에 선전포고했습니다`, A.isPlayer || D.isPlayer ? 'danger' : 'war', this.warAt(A, D));
+    this.emit('war', nw);
+  }
+  warAt(A, D) { const t = this.territories[D.capital]; return { x: t.cx, z: t.cy }; }
+  // 90일 동안 싸움이 없으면 휴전
+  checkPeace() {
+    for (const [k, w] of this.wars) {
+      if (this.day - w.last < 90) continue;
+      if (this.expeditions.some((e) => (e.owner === w.a && e.defender === w.b) || (e.owner === w.b && e.defender === w.a))) continue;
+      this.wars.delete(k);
+      const A = this.nations.get(w.a), B = this.nations.get(w.b);
+      this.log(`🕊️ ${A.flag} ${josa(A.name, '과와')} ${B.flag} ${josa(B.name, '이가')} 휴전했습니다`, '');
+      this.emit('peace', w);
     }
   }
 
@@ -324,7 +354,7 @@ export class Game {
         const kind = m.land.includes(j) ? 'land' : 'sea';
         const send = kind === 'land' ? myGround * 0.7 : Math.min(myGround * 0.6, n.units.ship * 0.6 * 12 + n.units.ship * 0.6 * 8);
         const ratio = send / (this.defensePower(D, t) + 1);
-        let score = ratio * (1 + (n.hostile.get(D.id) || 0) * 0.3) * (0.6 + t.gdp / 500);
+        let score = ratio * (1 + (n.hostile.get(D.id) || 0) * 0.3) * (0.6 + t.gdp / 500) * (this.atWar(n.id, D.id) ? 1.8 : 1);
         if (D.isPlayer) score *= this.opts.playerFocus ?? 1;
         if (ratio > 1.8 / Math.max(0.3, aggr) && score > bestScore) { bestScore = score; best = [j, kind]; }
       }

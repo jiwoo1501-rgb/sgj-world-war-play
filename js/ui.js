@@ -67,6 +67,7 @@ export class UI {
     document.querySelectorAll('[data-speed]').forEach((b) => { b.onclick = () => api.setSpeed(+b.dataset.speed); });
     $('#bal-btn').onclick = () => this.openBalance();
     $('#home-btn').onclick = () => api.flyHome();
+    $('#cam-btn').onclick = () => api.battleCam();
     $('#log-toggle').onclick = () => $('#log').classList.toggle('open');
     this.bindSound();
     $('#help-btn').onclick = () => { $('#help').hidden = !$('#help').hidden; };
@@ -194,10 +195,11 @@ export class UI {
   }
 
   // ---------- 뉴스 ----------
-  log({ msg, kind, day }) {
+  log({ msg, kind, day, at }) {
     const d = new Date(2026, 0, 1); d.setDate(d.getDate() + Math.floor(day));
     const li = h(`<li class="${kind}"><time>${d.getMonth() + 1}/${d.getDate()}</time></li>`);
     li.append(msg);
+    if (at && this.api) { li.classList.add('go'); li.title = '눌러서 이동'; li.onclick = () => this.api.flyTo(at); }
     const ul = $('#log-list'); ul.prepend(li);
     while (ul.children.length > 80) ul.lastChild.remove();
     if (kind === 'danger' || kind === 'mine') this.toast(msg, kind);

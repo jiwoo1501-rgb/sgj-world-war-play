@@ -1,6 +1,9 @@
 // 배경음악·효과음: 파일 없이 Web Audio로 실시간 합성
 // 음악은 D단조 전쟁 테마(현악 오스티나토 + 패드 + 타이코 + 스네어 + 금관), 전투 강도에 따라 층이 쌓인다.
 const PREF_KEY = 'sgj-audio-v1';
+// 실제 녹음 효과음 (sfx/CREDITS.md 참고) — 불러오기 전이나 실패 시에는 합성음 사용
+const SAMPLES = ['explosion1', 'explosion2', 'explosion3', 'explosion_far', 'cannon', 'rifle1', 'rifle2', 'rifle3', 'rifle_heavy1', 'rifle_heavy2', 'pistol', 'gunshot', 'horn', 'jet', 'siren'];
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -45,6 +48,7 @@ export class Sound {
     this.noiseBuf = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
     const d = this.noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     this.ensureBuffers();
+    this.loadSamples();
     this.applyPref();
     this.step = 0; this.nextT = c.currentTime + 0.1;
     this.timer = setInterval(() => this.schedule(), 25);
@@ -84,6 +88,33 @@ export class Sound {
     const now = this.ctx.currentTime;
     if (now - (this.last[key] || 0) < gap) return false;
     this.last[key] = now; return true;
+  }
+
+  loadSamples() {
+    this.smp = {};
+    for (const n of SAMPLES) {
+      fetch(`sfx/${n}.mp3`).then((r) => r.arrayBuffer())
+        .then((b) => new Promise((ok, no) => this.ctx.decodeAudioData(b, ok, no)))
+        .then((buf) => { this.smp[n] = buf; }).catch(() => {});
+    }
+  }
+  play(name, out, t, { rate = 1, gain = 1, offset = 0, dur, fadeIn = 0, fadeOut = 0 } = {}) {
+    const b = this.smp?.[name]; if (!b) return null;
+    const c = this.ctx, s = c.createBufferSource(); s.buffer = b; s.playbackRate.value = rate;
+    const g = c.createGain();
+    if (fadeIn) { g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + fadeIn); } else g.gain.value = gain;
+    const len = dur ?? (b.duration - offset) / rate;
+    if (fadeOut) { g.gain.setValueAtTime(gain, t + Math.max(fadeIn, len - fadeOut)); g.gain.exponentialRampToValueAtTime(0.0001, t + len); }
+    s.connect(g).connect(out); s.start(t, offset, dur ? dur * rate : undefined);
+    return s;
+  }
+  whistle(vol = 1, pan = 0) { // 날아오는 포탄 소리
+    if (vol < 0.15 || !this.ok('whis', 0.5)) return;
+    const c = this.ctx, { g: o, t } = this.voice(vol, pan, 0.2, 0);
+    const s = c.createOscillator(); s.type = 'sine';
+    s.frequency.setValueAtTime(2300, t); s.frequency.exponentialRampToValueAtTime(650, t + 0.9);
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.1 * vol, t + 0.5); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.95);
+    s.connect(g).connect(o); s.start(t); s.stop(t + 1);
   }
 
   // ---------- 효과음 (사실감: 거리 필터 + 지연 + 야외 메아리 + 여러 층) ----------
@@ -129,6 +160,15 @@ export class Sound {
     if (vol < 0.03 || !this.ok('exp', 0.06 / size)) return;
     this.ensureBuffers();
     const c = this.ctx, { g: o, t } = this.voice(vol, pan, 0.3, 0.35);
+    if (this.smp?.explosion1) {
+      const name = vol < 0.3 ? pick(['explosion_far', 'explosion3']) : pick(['explosion1', 'explosion2', 'explosion3']);
+      this.play(name, o, t, { rate: clamp((0.82 + Math.random() * 0.3) / Math.sqrt(size), 0.6, 1.25), gain: 0.9 * vol * Math.min(1.4, 0.6 + size * 0.5) });
+      if (size < 0.8) return;
+      // 큰 폭발은 초저음 충격을 덧댐
+      const sub = c.createOscillator(); sub.frequency.setValueAtTime(58, t); sub.frequency.exponentialRampToValueAtTime(24, t + 0.8);
+      sub.connect(this.gainEnv(t, 0.003, 0.9 * vol, 0.9 * size)).connect(o); sub.start(t); sub.stop(t + 1.3);
+      return;
+    }
     // 1) 순간 파열음
     if (vol > 0.35) { const cr = this.buf('white', t, 0.03); const g = this.gainEnv(t, 0.001, 0.9 * vol, 0.025); cr.connect(this.filt('highpass', 1200)).connect(g).connect(o); }
     // 2) 폭발 몸통: 갈색 잡음이 닫히는 필터
@@ -159,6 +199,16 @@ export class Sound {
     if (vol < 0.05 || !this.ok('gun', 0.22)) return;
     this.ensureBuffers();
     const { g: o, t } = this.voice(vol, pan, 0.2, 0.45);
+    if (this.smp?.rifle1) {
+      if (Math.random() < 0.6) { // 기관총 연사
+        const k = 6 + Math.floor(Math.random() * 10); let tt = t;
+        for (let i = 0; i < k; i++) { this.play(pick(['rifle1', 'rifle2', 'rifle3']), o, tt, { rate: 1.05 + Math.random() * 0.3, gain: 0.55 * vol }); tt += 0.07 + Math.random() * 0.015; }
+      } else { // 소총 산발
+        const k = 1 + Math.floor(Math.random() * 3); let tt = t;
+        for (let i = 0; i < k; i++) { this.play(pick(['rifle_heavy1', 'rifle_heavy2', 'pistol', 'gunshot']), o, tt, { rate: 0.9 + Math.random() * 0.25, gain: 0.6 * vol }); tt += 0.18 + Math.random() * 0.4; }
+      }
+      return;
+    }
     const auto = Math.random() < 0.6; // 기관총 연사 또는 소총 산발
     const k = auto ? 5 + Math.floor(Math.random() * 9) : 1 + Math.floor(Math.random() * 3);
     let tt = t;
@@ -168,6 +218,12 @@ export class Sound {
     if (vol < 0.05 || !this.ok('can', 0.12)) return;
     this.ensureBuffers();
     const c = this.ctx, { g: o, t } = this.voice(vol, pan, 0.3, 0.6);
+    if (this.smp?.cannon) {
+      this.play('cannon', o, t, { rate: 0.85 + Math.random() * 0.25, gain: 0.95 * vol });
+      const s = c.createOscillator(); s.frequency.setValueAtTime(80, t); s.frequency.exponentialRampToValueAtTime(30, t + 0.4);
+      s.connect(this.gainEnv(t, 0.002, 0.7 * vol, 0.45)).connect(o); s.start(t); s.stop(t + 0.6);
+      return;
+    }
     const cr = this.buf('white', t, 0.04); cr.connect(this.filt('highpass', 800)).connect(this.gainEnv(t, 0.0005, 1.0 * vol, 0.03)).connect(o);
     const bm = this.buf('brown', t, 1.2); const f = this.filt('lowpass', 1400); f.frequency.exponentialRampToValueAtTime(200, t + 0.5);
     bm.connect(f).connect(this.gainEnv(t, 0.002, 1.2 * vol, 0.7)).connect(o);
@@ -178,6 +234,11 @@ export class Sound {
     if (vol < 0.05 || !this.ok('jet', 0.9)) return;
     this.ensureBuffers();
     const c = this.ctx, { g: o, t } = this.voice(vol, pan, 0.3, 0.2);
+    if (this.smp?.jet) { // 실제 제트기 녹음 + 도플러
+      const s = this.play('jet', o, t, { offset: Math.random() * 7, dur: 4.5, gain: 1.1 * vol, fadeIn: 1.2, fadeOut: 1.8 });
+      if (s) { s.playbackRate.setValueAtTime(1.12, t); s.playbackRate.linearRampToValueAtTime(0.88, t + 4.5); }
+      return;
+    }
     const dur = 3.4, mid = t + 1.3;
     // 제트 굉음 (도플러: 다가올 땐 높고 지나가면 낮게)
     const roar = this.buf('pink', t, dur); const bp = this.filt('bandpass', 900, 0.6);
@@ -212,6 +273,7 @@ export class Sound {
     if (vol < 0.05 || !this.ok('horn', 2)) return;
     this.ensureBuffers();
     const c = this.ctx, { g: o, t } = this.voice(vol, pan, 0.5, 0.7);
+    if (this.smp?.horn) { this.play('horn', o, t, { gain: 0.8 * vol, dur: 5, fadeOut: 1.5 }); return; }
     const f = this.filt('lowpass', 900, 0.8); const formant = this.filt('peaking', 320, 2); formant.gain.value = 8;
     const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.5 * vol, t + 0.25);
     g.gain.setValueAtTime(0.5 * vol, t + 1.6); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.3);
@@ -248,6 +310,7 @@ export class Sound {
   }
   alarm() {
     if (!this.ok('alarm', 6)) return;
+    if (this.smp?.siren) { this.play('siren', this.out(this.sfxBus, 0, 0.3), this.ctx.currentTime, { gain: 0.35, dur: 3.5, fadeIn: 0.3, fadeOut: 1 }); return; }
     const c = this.ctx, t = c.currentTime, o = this.out(this.sfxBus, 0, 0.3);
     const s = c.createOscillator(); s.type = 'square';
     for (let i = 0; i < 3; i++) { s.frequency.setValueAtTime(620, t + i * 0.5); s.frequency.linearRampToValueAtTime(900, t + i * 0.5 + 0.4); }

@@ -33,6 +33,17 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .elabel.me { outline: 2px solid #8cc0ff; }
 .sea-label { color: rgba(170, 210, 240, 0.55); font-size: 13px; letter-spacing: 4px; font-style: italic; pointer-events: none; }
 
+/* 전선 부대 표식 (하츠 오브 아이언 풍) */
+.counter { display: flex; align-items: center; gap: 2px; padding: 1px 3px 1px 1px; background: rgba(12, 16, 22, 0.88); border: 1px solid color-mix(in srgb, var(--c) 80%, #fff 20%);
+  border-left: 4px solid var(--c); border-radius: 3px; font-size: 10px; line-height: 1.1; position: relative; pointer-events: none; white-space: nowrap; }
+.counter .cf { font-size: 11px; }
+.counter b { font-weight: 700; color: #eef; font-variant-numeric: tabular-nums; }
+.counter i { position: absolute; left: 4px; bottom: -3px; height: 2px; background: #5fe07a; border-radius: 1px; }
+.counter.me { border-color: #8cc0ff; box-shadow: 0 0 6px rgba(80,150,255,0.6); }
+#log-list li.war { color: #ffb08a; }
+#log-list li.go { cursor: pointer; }
+#log-list li.go:hover { background: rgba(255,255,255,0.06); }
+
 /* 모달 */
 .modal { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(3, 8, 14, 0.55); backdrop-filter: blur(3px); padding: 16px; }
 .start-card, .help-card, .bal-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
