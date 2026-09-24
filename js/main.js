@@ -5,6 +5,7 @@ import { Game, UNITS } from './game.js';
 import { WorldMap, LAND_H } from './map.js';
 import { makeUnit, makeFlag, flagTime } from './models.js';
 import { FX } from './fx.js';
+import { makeArrow, computeFront, FrontLine } from './warfx.js';
 import { UI } from './ui.js';
 import { Sound } from './audio.js';
 
@@ -72,10 +73,22 @@ function shakeAt(x, z, amt) { const [v] = sfxAt(x, z); shake = Math.min(1.2, sha
 const KR = world.countries.find((c) => c.a2 === 'KR');
 setView(KR.cx, KR.cy, 150, false);
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight); labels.setSize(innerWidth, innerHeight);
-});
+// 화면 크기 변경·폰 회전 대응 (iOS는 회전 직후 크기가 늦게 바뀌어 여러 번 다시 잰다)
+let lastW = 0, lastH = 0;
+function resize() {
+  const w = document.documentElement.clientWidth || innerWidth, h = document.documentElement.clientHeight || innerHeight;
+  if (w === lastW && h === lastH) return;
+  lastW = w; lastH = h;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h); labels.setSize(w, h);
+}
+resize();
+addEventListener('resize', resize);
+visualViewport?.addEventListener('resize', resize);
+addEventListener('orientationchange', () => { for (const t of [50, 200, 500, 1000]) setTimeout(resize, t); });
+// iOS 사파리의 페이지 확대(핀치·더블탭) 막기 — 지도 확대와 충돌
+document.addEventListener('gesturestart', (e) => e.preventDefault());
+document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
 
 // 카메라 이동 (부드럽게)
 let fly = null;
@@ -187,56 +200,128 @@ function buildExp(e) {
   const add = (type, count, spacing) => {
     for (let i = 0; i < count; i++) {
       const m = makeUnit(type, n.color); m.scale.setScalar(U * (type === 'ship' ? 1.1 : 1));
-      const row = Math.floor(i / 3), col = (i % 3) - 1;
-      m.userData = { type, off: [-row * spacing - (type === 'inf' ? 0.7 : 0), col * spacing * 0.8], ph: Math.random() * 6 };
+      const lat = count > 1 ? (i / (count - 1) - 0.5) : 0; // -0.5~0.5: 횡대 위치
+      m.userData = { type, lat, back: (type === 'inf' ? 0.55 : 0) + (i % 2) * spacing * 0.5 + Math.random() * 0.25, ph: Math.random() * 6, slot: i / Math.max(1, count - 1) };
       g.add(m); members.push(m);
     }
   };
   const u = e.units;
-  if (e.kind === 'land') { add('tank', Math.min(4, Math.max(u.tank > 0 ? 1 : 0, Math.ceil(u.tank / 6))), 0.6); add('inf', Math.min(6, Math.max(1, Math.ceil(u.inf / 15))), 0.25); }
-  if (e.kind === 'sea') add('ship', Math.min(3, Math.max(1, Math.ceil(u.ship / 3))), 1.1);
-  if (e.kind === 'air') add('jet', Math.min(4, Math.max(1, Math.ceil(u.jet / 3))), 0.8);
+  if (e.kind === 'land') { add('tank', Math.min(6, Math.max(u.tank > 0 ? 1 : 0, Math.ceil(u.tank / 5))), 0.6); add('inf', Math.min(10, Math.max(1, Math.ceil(u.inf / 10))), 0.3); }
+  if (e.kind === 'sea') add('ship', Math.min(4, Math.max(1, Math.ceil(u.ship / 3))), 1.1);
+  if (e.kind === 'air') add('jet', Math.min(5, Math.max(1, Math.ceil(u.jet / 3))), 0.8);
   if (e.kind === 'missile') add('missile', Math.min(4, Math.max(1, Math.round(u.missile))), 0.5);
   const div = document.createElement('div'); div.className = 'elabel' + (n.isPlayer ? ' me' : '');
   div.style.setProperty('--c', n.color);
   const lab = new CSS2DObject(div); lab.position.set(0, 1.2, 0); g.add(lab);
   scene.add(g);
   const dx = e.to.x - e.from.x, dz = e.to.y - e.from.y, L = Math.hypot(dx, dz) || 1;
-  expVis.set(e.id, { g, members, e, div, lab, dir: [dx / L, dz / L], fire: 0 });
+  // 진격 화살표 (우리나라를 노리는 공격은 붉게 깜빡이는 테두리)
+  const pw = game.power(u);
+  const width = e.kind === 'missile' ? 0.14 : e.kind === 'air' ? 0.25 : 0.3 + Math.log10(pw + 1) * 0.22;
+  const arrow = makeArrow({ x: e.from.x, z: e.from.y }, { x: e.to.x, z: e.to.y }, n.color, width, LAND_H + 0.09, e.defender === ui.me.id);
+  scene.add(arrow);
+  expVis.set(e.id, { g, members, e, div, lab, dir: [dx / L, dz / L], fire: 0, arrow, spread: e.kind === 'land' ? 1.2 + Math.min(2.2, members.length * 0.18) : 1.4 });
   if (e.kind === 'missile') members.forEach((m, i) => { m.userData.delay = i * 0.12; });
+}
+function clearFront(v) {
+  if (v.fl) { v.fl.dispose(); v.fl = null; }
+  if (v.defs) { scene.remove(v.defs); v.defs = null; }
+  if (v.landers) { v.landers.forEach((m) => v.g.remove(m)); v.landers = null; }
 }
 function removeExp(e) {
   const v = expVis.get(e.id); if (!v) return;
-  v.lab.element.remove(); scene.remove(v.g); expVis.delete(e.id);
+  v.lab.element.remove(); scene.remove(v.g); clearFront(v);
+  // 화살표는 서서히 사라지게
+  v.arrow.userData.fade = true; fadingArrows.push(v.arrow);
+  expVis.delete(e.id);
+}
+const fadingArrows = [];
+window.__sgj = { expVis, get game() { return game; } }; // 디버그용
+function updateArrows(dt) {
+  for (let i = fadingArrows.length - 1; i >= 0; i--) {
+    const a = fadingArrows[i], u = a.material.uniforms;
+    u.uTime.value += dt; u.uAlpha.value -= dt * 0.8;
+    if (u.uAlpha.value <= 0) { scene.remove(a); a.geometry.dispose(); a.material.dispose(); fadingArrows.splice(i, 1); }
+  }
+}
+
+// 전투가 시작되면 실제 국경을 따라 전선을 긋고 양측 병력을 전선에 흩어 배치
+function setupFront(v) {
+  const e = v.e;
+  const front = computeFront(world, e.src, e.target, e.kind, { x: e.from.x, z: e.from.y });
+  v.fl = new FrontLine(scene, front, tY(e.target) + 0.06);
+  v.def0 = Math.max(0.01, e.def);
+  const D = game.nations.get(e.defender);
+  v.defs = new THREE.Group();
+  const nd = Math.min(9, Math.max(2, Math.ceil(v.def0 / 18)));
+  const tankShare = D.units.tank * 4 / Math.max(1, D.units.tank * 4 + D.units.inf);
+  for (let i = 0; i < nd; i++) {
+    const m = makeUnit(Math.random() < tankShare ? 'tank' : 'inf', D.color); m.scale.setScalar(U);
+    m.userData = { slot: (i + 0.5) / nd, ph: Math.random() * 6 };
+    v.defs.add(m);
+  }
+  scene.add(v.defs);
+  if (e.kind === 'sea') { // 상륙군
+    const A = game.nations.get(e.owner);
+    v.landers = [];
+    const nl = Math.min(8, Math.max(2, Math.ceil(game.power(e.units, (u) => u.cls === 'ground') / 12)));
+    for (let i = 0; i < nl; i++) { const m = makeUnit(i % 3 === 0 ? 'tank' : 'inf', A.color); m.scale.setScalar(U); m.userData = { slot: (i + 0.5) / nl, ph: Math.random() * 6, type: 'lander' }; v.g.add(m); v.landers.push(m); }
+  }
 }
 
 const tmpA = new THREE.Vector3();
 function updateExp(v, dt, time) {
   const e = v.e; const [dx, dz] = v.dir;
   const back = e.state === 'return';
-  let p = e.p;
-  const hold = e.state === 'battle' ? Math.max(0, 1 - 0.9 / e.len) : 1;
-  if (e.state === 'battle' || p > hold) p = Math.min(p, hold);
+  const camD = camera.position.distanceTo(controls.target);
+  // 화살표
+  const au = v.arrow.material.uniforms; au.uTime.value += dt;
+  const aTarget = back ? 0 : (e.owner === ui.me.id || e.defender === ui.me.id ? 0.95 : 0.7);
+  au.uAlpha.value += (aTarget - au.uAlpha.value) * Math.min(1, dt * 3);
+  let p = Math.min(e.p, 1);
   const cx = e.from.x + (e.to.x - e.from.x) * p, cz = e.from.y + (e.to.y - e.from.y) * p;
+  const near = Math.hypot(cx - controls.target.x, cz - controls.target.z) < Math.max(25, camD * 1.3);
   const heading = Math.atan2(-(back ? -dz : dz), back ? -dx : dx);
   const perp = [-dz, dx];
   const pw = game.power(e.units);
   v.div.textContent = `${UNITS[{ land: 'tank', sea: 'ship', air: 'jet', missile: 'missile' }[e.kind]].icon} ${Math.round(pw)}`;
   v.lab.visible = e.kind !== 'missile';
+  v.g.visible = near || e.kind === 'missile';
   const alive = Math.max(1, Math.ceil(v.members.length * Math.min(1, pw / (v.pw0 ||= pw || 1)) + 0.001));
+  const battle = e.state === 'battle' && (e.kind === 'land' || e.kind === 'sea');
+  if (battle && near && !v.fl) setupFront(v);
+  if (!battle && v.fl) clearFront(v);
+  const push = v.fl ? THREE.MathUtils.clamp(1 - e.def / v.def0, 0, 1) * 0.9 : 0;
+  const pts = v.fl?.front.pts;
+  const slotPt = (slot, side, extra = 0) => {
+    const i = Math.min(pts.length - 1, Math.floor(slot * (pts.length - 1) + 0.5));
+    const [x, z, nx, nz] = v.fl.place(i, push, side);
+    return [x - nx * extra, z - nz * extra, nx, nz];
+  };
   v.members.forEach((m, i) => {
     m.visible = i < alive;
-    const { off, ph, type } = m.userData;
-    const fwd = back ? -off[0] : off[0];
-    let x = cx + dx * fwd + perp[0] * off[1], z = cz + dz * fwd + perp[1] * off[1], y = 0.16;
+    const { lat, back: bk, ph, type, slot } = m.userData;
+    // 진격할수록 횡대로 넓게 퍼진다
+    const spread = e.kind === 'land' ? v.spread * (0.35 + 0.65 * Math.min(1, p * 1.6)) : v.spread;
+    const fwd = back ? bk : -bk;
+    let x = cx + dx * fwd + perp[0] * lat * spread, z = cz + dz * fwd + perp[1] * lat * spread, y = 0.16;
     let rotY = heading, rotZ = 0, rotX = 0;
+    if (v.fl && (type === 'tank' || type === 'inf')) { // 전선 배치: 공격군은 국경 바깥쪽에서 안쪽을 향함
+      const [fx2, fz2, nx, nz] = slotPt(slot, -1, type === 'tank' ? 0.35 : 0);
+      const surge = Math.sin(time * 1.1 + ph) * 0.12;
+      x = fx2 + nx * surge; z = fz2 + nz * surge; rotY = Math.atan2(-nz, nx);
+    }
     if (type === 'inf') y += Math.abs(Math.sin(time * 9 + ph)) * 0.04;
     if (type === 'tank') y += Math.sin(time * 20 + ph) * 0.004;
-    if (type === 'ship') { y = -0.02 + Math.sin(time * 2 + ph) * 0.02; rotZ = Math.sin(time * 1.6 + ph) * 0.05; if (Math.random() < 0.5) fx.wake(x - dx * 0.4, z - dz * 0.4); }
+    if (type === 'ship') {
+      if (v.fl) { const [fx2, fz2, nx, nz] = slotPt(slot, -1, 1.6); x = fx2; z = fz2; rotY = Math.atan2(-nz, nx) + Math.PI / 2; }
+      y = -0.02 + Math.sin(time * 2 + ph) * 0.02; rotZ = Math.sin(time * 1.6 + ph) * 0.05;
+      if (!v.fl && Math.random() < 0.5) fx.wake(x - dx * 0.4, z - dz * 0.4);
+    }
     if (type === 'jet') {
       y = 2.2 + Math.sin(Math.PI * p) * 2.5 + Math.sin(time * 2 + ph) * 0.1;
-      if (e.state === 'battle') { // 목표 상공 선회
-        const a = time * 1.4 + i * 1.6; x = e.to.x + Math.cos(a) * 1.4; z = e.to.y + Math.sin(a) * 1.4; y = 2.0 + i * 0.2;
+      if (e.state === 'battle') { // 목표 상공 선회하며 폭격
+        const a = time * 1.4 + i * 1.3; x = e.to.x + Math.cos(a) * 1.5; z = e.to.y + Math.sin(a) * 1.5; y = 2.0 + i * 0.2;
         rotY = -a - Math.PI / 2; rotX = 0.5;
       }
       if (Math.random() < 0.6) fx.trail(x - Math.cos(rotY) * 0.35, y, z + Math.sin(rotY) * 0.35);
@@ -244,41 +329,68 @@ function updateExp(v, dt, time) {
     if (type === 'missile') {
       const q = Math.max(0, Math.min(1, e.p - (m.userData.delay || 0) * 0.3));
       const H = THREE.MathUtils.clamp(e.len * 0.25, 3, 30);
-      x = e.from.x + (e.to.x - e.from.x) * q + perp[0] * off[1] * (1 - q);
-      z = e.from.y + (e.to.y - e.from.y) * q + perp[1] * off[1] * (1 - q);
+      x = e.from.x + (e.to.x - e.from.x) * q + perp[0] * lat * (1 - q);
+      z = e.from.y + (e.to.y - e.from.y) * q + perp[1] * lat * (1 - q);
       y = 0.3 + Math.sin(Math.PI * q) * H;
-      const slope = Math.cos(Math.PI * q) * Math.PI * H / e.len;
-      rotZ = Math.atan(slope);
+      rotZ = Math.atan(Math.cos(Math.PI * q) * Math.PI * H / e.len);
       fx.trail(x - Math.cos(heading) * 0.3, y, z + Math.sin(heading) * 0.3, true);
     }
     m.position.set(x, y, z);
     m.rotation.set(rotX, rotY, rotZ, 'YZX');
   });
-  v.lab.position.set(cx - v.g.position.x, (e.kind === 'air' ? 4 : 1.3), cz - v.g.position.z);
-  // 전투 연출
-  if (e.state === 'battle') {
+  if (v.landers) v.landers.forEach((m, i) => {
+    const [x, z, nx, nz] = slotPt(m.userData.slot, -1, 0.1);
+    const s = Math.sin(time * 1.3 + m.userData.ph) * 0.1;
+    m.position.set(x + nx * s, 0.16, z + nz * s); m.rotation.set(0, Math.atan2(-nz, nx), 0);
+    m.visible = i < Math.ceil(v.landers.length * Math.min(1, game.power(e.units, (u) => u.cls === 'ground') / Math.max(1, v.g0 ||= game.power(e.units, (u) => u.cls === 'ground'))));
+  });
+  if (v.defs) {
+    const nd = v.defs.children.length, vis = Math.ceil(nd * e.def / v.def0);
+    v.defs.children.forEach((m, i) => {
+      const [x, z, nx, nz] = slotPt(m.userData.slot, 1, 0);
+      const s = Math.sin(time * 1.2 + m.userData.ph) * 0.1;
+      m.position.set(x + nx * s, 0.16, z + nz * s); m.rotation.set(0, Math.atan2(nz, -nx), 0);
+      m.visible = i < vis;
+    });
+    v.fl.update(dt, push);
+  }
+  const center = v.fl ? slotPt(0.5, 0) : [cx, cz];
+  v.lab.position.set(center[0] - v.g.position.x, (e.kind === 'air' ? 4 : 1.4), center[1] - v.g.position.z);
+  // 전투 연출: 양측 사격, 포격, 전선 폭발
+  if (e.state === 'battle' && near) {
     v.fire -= dt;
     if (v.fire <= 0) {
-      v.fire = 0.12 + Math.random() * 0.25;
-      const m = v.members[Math.floor(Math.random() * alive)];
+      v.fire = 0.08 + Math.random() * 0.18;
       const ty = tY(e.target);
       const mine = e.owner === ui.me.id || e.defender === ui.me.id;
-      const [vol, pan] = sfxAt(cx, cz, mine && camera.position.distanceTo(controls.target) < 60);
+      const [vol, pan] = sfxAt(center[0], center[1], mine && camD < 60);
+      const atk = [...v.members.slice(0, alive), ...(v.landers || [])].filter((m) => m.visible);
+      const defs = v.defs ? v.defs.children.filter((m) => m.visible) : [];
+      const m = atk[Math.floor(Math.random() * atk.length)];
+      const d = defs[Math.floor(Math.random() * defs.length)];
+      const tgt = d ? [d.position.x, d.position.y + 0.15, d.position.z] : [e.to.x + (Math.random() - 0.5) * 1.4, ty + 0.2, e.to.y + (Math.random() - 0.5) * 1.4];
       if (m) {
-        tmpA.set(Math.cos(m.rotation.y) * 0.5, m.userData.type === 'jet' ? 0 : 0.25, -Math.sin(m.rotation.y) * 0.5).add(m.position);
+        tmpA.set(Math.cos(m.rotation.y) * 0.45, m.userData.type === 'jet' ? 0 : 0.2, -Math.sin(m.rotation.y) * 0.45).add(m.position);
         fx.muzzle(tmpA.x, tmpA.y, tmpA.z);
-        for (let k = 0; k < 3; k++) fx.tracer(tmpA.x, tmpA.y, tmpA.z, e.to.x + (Math.random() - 0.5) * 1.4, ty + 0.2, e.to.y + (Math.random() - 0.5) * 1.4);
-        // 방어군의 응사
-        fx.tracer(e.to.x + (Math.random() - 0.5), ty + 0.2, e.to.y + (Math.random() - 0.5), m.position.x, m.position.y + 0.15, m.position.z);
-        if (m.userData.type === 'tank' || m.userData.type === 'ship') sound.cannon(vol * 0.8, pan); else sound.gunfire(vol * 0.7, pan);
+        for (let k = 0; k < 3; k++) fx.tracer(tmpA.x, tmpA.y, tmpA.z, tgt[0] + (Math.random() - 0.5) * 0.3, tgt[1], tgt[2] + (Math.random() - 0.5) * 0.3);
+        const big = m.userData.type === 'tank' || m.userData.type === 'ship';
+        if (big) sound.cannon(vol * 0.8, pan); else sound.gunfire(vol * 0.7, pan);
       }
-      if (Math.random() < 0.55) {
-        const sz = 0.45 + Math.random() * 0.5;
-        fx.explosion(e.to.x + (Math.random() - 0.5) * 1.6, ty, e.to.y + (Math.random() - 0.5) * 1.6, sz);
-        sound.explosion(vol * 0.65, pan, sz); if (mine) shakeAt(e.to.x, e.to.y, 0.12);
+      if (d && m) { // 방어군 응사
+        const dm = [d.position.x - Math.cos(d.rotation.y) * -0.4, d.position.y + 0.2, d.position.z];
+        fx.muzzle(dm[0], dm[1], dm[2]);
+        for (let k = 0; k < 2; k++) fx.tracer(dm[0], dm[1], dm[2], m.position.x + (Math.random() - 0.5) * 0.3, m.position.y + 0.15, m.position.z + (Math.random() - 0.5) * 0.3);
+        if (Math.random() < 0.5) sound.gunfire(vol * 0.5, pan);
       }
-      if (Math.random() < 0.3) fx.explosion(cx + (Math.random() - 0.5) * 1.2, 0.12, cz + (Math.random() - 0.5) * 1.2, 0.35);
-      if (Math.random() < 0.08) fx.burn(e.to.x + (Math.random() - 0.5) * 1.5, ty, e.to.y + (Math.random() - 0.5) * 1.5, 4, 0.6);
+      if (Math.random() < 0.5) { // 포탄이 전선 양쪽에 떨어짐
+        const sz = 0.4 + Math.random() * 0.55;
+        let ex, ez;
+        if (v.fl) { const [x, z] = slotPt(Math.random(), Math.random() < 0.65 ? 1.6 : -1.4); ex = x; ez = z; }
+        else { ex = e.to.x + (Math.random() - 0.5) * 1.6; ez = e.to.y + (Math.random() - 0.5) * 1.6; }
+        fx.explosion(ex, ty, ez, sz);
+        sound.explosion(vol * 0.65, pan, sz); if (mine) shakeAt(ex, ez, 0.12);
+      }
+      if (v.fl && Math.random() < 0.12) { const [x, z] = slotPt(Math.random(), 0.3); fx.burn(x, ty, z, 5, 0.55); }
     }
   }
 }
@@ -290,7 +402,8 @@ renderer.domElement.addEventListener('pointerdown', (ev) => { down = [ev.clientX
 renderer.domElement.addEventListener('pointerup', (ev) => {
   if (!down || !game) return;
   if (Math.hypot(ev.clientX - down[0], ev.clientY - down[1]) > 6) return;
-  ndc.set((ev.clientX / innerWidth) * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1);
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   const hit = ray.intersectObjects(map.meshes, false)[0];
   select(hit ? hit.object.userData.idx : null);
@@ -311,8 +424,9 @@ addEventListener('keydown', (e) => {
 // ---------- 루프 ----------
 const clock = new THREE.Clock();
 let uiT = 0, labT = 0, musT = 0;
-renderer.setAnimationLoop(() => {
-  const dt = Math.min(0.05, clock.getDelta());
+function frame(forceDt) {
+  const dt = forceDt ?? Math.min(0.05, clock.getDelta());
+  resize();
   const time = clock.elapsedTime;
   if (game && speed > 0 && !game.over) {
     acc += dt * speed;
@@ -334,6 +448,7 @@ renderer.setAnimationLoop(() => {
   map.update(dt); fx.update(dt); flagTime.value = time;
   if (game) {
     for (const v of expVis.values()) updateExp(v, dt, time);
+    updateArrows(dt);
     uiT -= dt; if (uiT <= 0) { uiT = 0.25; ui.refresh(); }
     labT -= dt; if (labT <= 0) { labT = 0.3; updateLabels(camD); }
   }
@@ -348,7 +463,10 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
   labels.render(scene, camera);
   if (saved) camera.position.copy(saved);
-});
+}
+renderer.setAnimationLoop(() => frame());
+window.__sgj.view = (x, z, d) => setView(x, z, d, false);
+window.__sgj.frame = (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) frame(dt); };
 
 function updateLabels(camD) {
   for (const [id, v] of nationVis) {
