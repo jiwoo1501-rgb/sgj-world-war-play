@@ -225,7 +225,7 @@ function startGame(opts, saved) {
   const c = game.territories[me.capital];
   setView(c.cx, c.cy, 32);
   ui.log(saved ? { msg: `💾 저장된 게임을 불러왔습니다 (${me.flag} ${me.name})`, kind: 'mine', day: game.day }
-    : { msg: `${me.flag} ${me.name} 지도자님, 세계 GDP 60%를 장악하면 승리합니다. 40일간 평화가 유지됩니다.`, kind: 'mine', day: 0 });
+    : { msg: `${me.flag} ${me.name} 지도자님, 세계 GDP 90%를 장악하면 승리합니다. 40일간 평화가 유지됩니다.`, kind: 'mine', day: 0 });
 }
 let speedBeforePause = 1;
 
@@ -266,16 +266,18 @@ function onCapture({ t, from, to }) {
   if (ui.sel === t.idx) ui.renderInfo(true);
 }
 // 점령지에 정복국 국기
+const POLE_GEO = new THREE.CylinderGeometry(0.012, 0.012, 0.9, 6), POLE_MAT = new THREE.MeshStandardMaterial({ color: 0xdddddd });
 function placeOccFlag(t, to) {
   const old = occFlags.get(t.idx);
   if (old) { scene.remove(old); occFlags.delete(t.idx); }
   if (to.id !== t.home) {
     const g = new THREE.Group();
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.9, 6), new THREE.MeshStandardMaterial({ color: 0xdddddd }));
+    const pole = new THREE.Mesh(POLE_GEO, POLE_MAT); // 깃대 모델·재질은 모든 점령지가 공유
     pole.position.y = 0.45; g.add(pole);
     const f = makeFlag(to.color); f.position.y = 0.75; f.scale.setScalar(0.9); g.add(f);
     const nv = nationVis.get(t.home);
     g.position.set(t.cx + (nv ? -0.35 : 0), tY(t.idx), t.cy);
+    g.visible = false; // 가까이 볼 때만 updateLabels에서 켬
     scene.add(g); occFlags.set(t.idx, g);
   }
   if (ui.sel === t.idx) ui.renderInfo(true);
@@ -553,6 +555,7 @@ addEventListener('keydown', (e) => {
 // ---------- 루프 ----------
 const clock = new THREE.Clock();
 let uiT = 0, labT = 0, musT = 0, labFrame = 0, shadowTick = 0;
+const lastCamM = new THREE.Matrix4();
 // 느린 기기 보호: 5초 평균이 25fps 아래면 그래픽 품질을 한 단계 낮춤 (한 번만)
 let perfAcc = 0, perfN = 0, perfDone = false;
 function watchPerf(rawDt) {
@@ -614,7 +617,10 @@ function frame(forceDt) {
     shake *= Math.pow(0.02, dt);
   }
   renderer.render(scene, camera);
-  if ((labFrame = (labFrame + 1) % 2) === 0 || forceDt) labels.render(scene, camera); // 지도 라벨(HTML)은 2프레임에 한 번
+  // 지도 라벨(HTML)은 카메라가 움직일 때만 매번, 멈춰 있으면 6프레임에 한 번 (폰에서 가장 무거운 부분)
+  const moved = !camera.matrixWorld.equals(lastCamM); if (moved) lastCamM.copy(camera.matrixWorld);
+  labFrame = (labFrame + 1) % 6;
+  if (forceDt || (moved ? labFrame % (IS_MOBILE ? 2 : 1) === 0 : labFrame === 0)) labels.render(scene, camera);
   if (saved) camera.position.copy(saved);
 }
 let lastFrameT = 0;
@@ -627,6 +633,9 @@ window.__sgj.view = (x, z, d) => setView(x, z, d, false);
 window.__sgj.frame = (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) frame(dt); };
 
 function updateLabels(camD) {
+  // 점령지 국기: 가까이 볼 때 화면 근처 것만 (수백 개가 쌓이면 폰에서 크게 느려짐)
+  const fr = camD * 1.1 + 3, tx = controls.target.x, tz = controls.target.z;
+  for (const g of occFlags.values()) g.visible = camD < 40 && Math.abs(g.position.x - tx) < fr && Math.abs(g.position.z - tz) < fr;
   for (const [id, v] of nationVis) {
     const n = game.nations.get(id);
     const pw = game.armyPow(n) * n.tech;

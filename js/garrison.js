@@ -8,6 +8,7 @@ import { makeInstanced, variantKey } from './models.js';
 import { project } from './map.js';
 import { CITIES } from './cities.js';
 
+export const GARRISON_SHARE = 0.3; // 국경선 중 병력을 배치하는 비율
 const MAX = { inf: 1400, tank: 600, arty: 160, town: 200 };
 
 export class Garrisons {
@@ -84,7 +85,10 @@ export class Garrisons {
       if (a.owner === b.owner) continue;
       const war = g.atWar(a.owner, b.owner);
       const pts = this.pairPts(a, b, war ? 1.1 : 2.2);
-      for (let k = 0; k < pts.length; k += 4) {
+      // 경계선의 30% 구간에만 배치 (시작 위치는 지방 쌍마다 고정된 값으로)
+      const n = pts.length / 4, span = Math.max(1, Math.round(n * GARRISON_SHARE));
+      const start = n <= span ? 0 : ((a.idx * 7919 + j * 104729) % (n - span + 1));
+      for (let k = start * 4; k < (start + span) * 4; k += 4) {
         const x = pts[k], z = pts[k + 1], nx = pts[k + 2], nz = pts[k + 3];
         posts.push({ x: x - nx * 0.45, z: z - nz * 0.45, fx: nx, fz: nz, t: a, war });   // a 쪽 초소는 b를 바라봄
         posts.push({ x: x + nx * 0.45, z: z + nz * 0.45, fx: -nx, fz: -nz, t: b, war });

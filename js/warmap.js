@@ -147,7 +147,8 @@ export class WarMap {
     this.counters = []; this.cnt = new Map();
     for (const { A, B, segs } of fronts) {
       const total = segs.reduce((s, { s: q }) => s + Math.hypot(q[2] - q[0], q[3] - q[1]), 0);
-      const spacing = Math.max(1.6, total / 10);
+      if (used >= 180) break; // 표식 총량 제한 (HTML 요소라 많으면 느림)
+      const spacing = Math.max(1.6, total / 6);
       let acc = spacing / 2; const pts = [];
       for (const { s: [x1, z1, x2, z2], b } of segs) {
         const L = Math.hypot(x2 - x1, z2 - z1); if (!L) continue;
