@@ -134,8 +134,8 @@ const tY = (idx) => map.heightOf(idx);
 const citySize = (t) => THREE.MathUtils.clamp(Math.sqrt(world.countries[t.country].area) / 900, 0.22, 0.9);
 
 // ---------- 저장 · 설정 ----------
-const SAVE_KEY = 'sgj-save-v1', SET_KEY = 'sgj-settings-v2'; // v2: 폰 기본 품질을 '낮음'으로 바꾸면서 이전 저장값 무시
-const readSave = () => { try { return JSON.parse(localStorage.getItem(SAVE_KEY)); } catch { return null; } };
+const SAVE_KEY = 'sgj-save-v2', SET_KEY = 'sgj-settings-v2'; // v2: 폰 기본 품질을 '낮음'으로 바꾸면서 이전 저장값 무시
+const readSave = () => { try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); return s && s.owners?.length === world.provinces.length ? s : null; } catch { return null; } }; // 지도 데이터가 바뀐 옛 저장은 무시
 function saveGame() {
   if (!game || game.over) return false;
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(game.serialize())); return true; } catch { return false; }
@@ -165,6 +165,8 @@ ui.showMenu({
   getSettings: () => settings,
   applySettings,
 });
+// (모듈 뒤쪽 선언들이 준비된 다음에 실행되도록 한 박자 늦춤)
+setTimeout(() => { try { if (sessionStorage.getItem('sgj-resume')) { sessionStorage.removeItem('sgj-resume'); const s = readSave(); if (s) { document.getElementById('menu').hidden = true; startGame(s.opts, s); } } } catch (e) { console.error(e); } }, 0);
 if (location.hash === '#new') { history.replaceState(null, '', location.pathname); ui.showStart(startGame); }
 
 function startGame(opts, saved) {
@@ -528,6 +530,7 @@ function updateExp(v, dt, time) {
 
 // ---------- 선택 ----------
 const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+const pickPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -LAND_H), pickPt = new THREE.Vector3();
 let down = null;
 renderer.domElement.addEventListener('pointerdown', (ev) => { down = [ev.clientX, ev.clientY]; });
 renderer.domElement.addEventListener('pointerup', (ev) => {
@@ -536,8 +539,9 @@ renderer.domElement.addEventListener('pointerup', (ev) => {
   const r = renderer.domElement.getBoundingClientRect();
   ndc.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  const hit = ray.intersectObjects(map.meshes, false)[0];
-  select(hit ? map.provAt(hit) : null);
+  // 땅 윗면 높이의 평면과 만나는 점 → 격자 색인으로 지방 찾기 (삼각형 광선 판정보다 수십 배 빠름)
+  const hitP = ray.ray.intersectPlane(pickPlane, pickPt);
+  select(hitP ? map.pickAt(hitP.x, hitP.z) : null);
 });
 function select(i) {
   ui.select(i);
@@ -626,7 +630,21 @@ function frame(forceDt) {
 let lastFrameT = 0;
 renderer.setAnimationLoop((now) => {
   if (now - lastFrameT < (IS_MOBILE && settings.quality === 'low' ? 1000 / 45 : 1000 / 62)) return; // 120Hz 화면에서도 60fps(폰 저품질은 45fps)로 제한
-  lastFrameT = now; frame();
+  lastFrameT = now;
+  try { frame(); } catch (err) { // 한 프레임에서 오류가 나도 게임 전체가 멈추지 않게
+    if (!frameErr) { frameErr = true; console.error('프레임 오류', err); ui.log?.({ msg: '⚠️ 일시적인 오류가 있었지만 계속 진행합니다', kind: 'info', day: game?.day ?? 0 }); }
+  }
+});
+let frameErr = false;
+// 폰에서 메모리 부족 등으로 그래픽 장치가 초기화되면: 저장 후 자동으로 다시 불러오기
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  try { saveGame(); } catch {}
+  const d = document.createElement('div'); d.id = 'ctx-lost'; d.className = 'modal';
+  d.innerHTML = '<div class="start-card small-card" style="text-align:center"><h2 class="card-title">그래픽 재설정 중</h2><p class="lead">게임을 저장했습니다. 잠시 후 이어서 불러옵니다.</p></div>';
+  document.body.appendChild(d);
+  try { sessionStorage.setItem('sgj-resume', '1'); } catch {}
+  setTimeout(() => location.reload(), 1500);
 });
 window.__sgj.fx = fx; window.__sgj.strikes = strikes;
 window.__sgj.view = (x, z, d) => setView(x, z, d, false);

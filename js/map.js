@@ -1,7 +1,6 @@
 // 평면 세계지도: 바다 셰이더, 국가별 얇은 입체 영토, 국경선, 경위선, 바다 이름
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const LAND_H = 0.12;
 const W = 400;
@@ -95,120 +94,133 @@ export class WorldMap {
     this.group.add(l);
   }
 
-  // 나라마다 메시 하나. 각 정점에 '지방 번호'를 넣어 지방별 색·점령 진행을 셰이더에서 칠한다.
+  // 세계의 모든 지방을 메시 하나로 (그리기 호출 1번). 지방 색은 색상표 이미지(지방 번호 → 색)에서 읽음.
   buildLand() {
-    const W = this.world, C = W.countries, P = W.provinces;
-    this.provLocal = new Int16Array(P.length);  // 지방 → 나라 안에서의 번호
-    const areaRank = [...C.keys()].sort((a, b) => C[b].area - C[a].area);
-    const rankOf = new Map(areaRank.map((i, r) => [i, r]));
+    const P = this.world.provinces, N = P.length;
+    this.TW = 128; this.TH = Math.ceil(N / this.TW);
+    this.colData = new Uint8Array(this.TW * this.TH * 4).fill(136);
+    this.colTex = new THREE.DataTexture(this.colData, this.TW, this.TH);
+    this.colTex.colorSpace = THREE.SRGBColorSpace; this.colTex.needsUpdate = true;
+    this.cur = Array.from({ length: N }, () => new THREE.Color(0x888888)); // 현재 표시 색 (깜빡임 전환용)
+    this.tweens = new Map();
     const ek = (a, b, c2, d) => { const k1 = a + ',' + b, k2 = c2 + ',' + d; return k1 < k2 ? k1 + '|' + k2 : k2 + '|' + k1; };
-    C.forEach((c, ci) => {
-      // 윗면(지방별 삼각분할) + 옆면은 바깥 경계만 (지방끼리 맞닿은 안쪽 벽과 밑면은 보이지 않으므로 만들지 않음)
-      const cnt = new Map();
-      for (const pi of c.provs) for (const r of P[pi].rings) for (let k = 0; k < r.length; k += 2) { const j = (k + 2) % r.length; const e = ek(r[k], r[k + 1], r[j], r[j + 1]); cnt.set(e, (cnt.get(e) || 0) + 1); }
-      const pos = [], nor = [], prov = [];
-      c.provs.forEach((pi, local) => {
-        this.provLocal[pi] = local;
-        for (const r of P[pi].rings) {
-          const v = []; for (let k = 0; k < r.length; k += 2) v.push(new THREE.Vector2(r[k], r[k + 1]));
-          const cw = THREE.ShapeUtils.isClockWise(v);
-          for (const t of THREE.ShapeUtils.triangulateShape(v, [])) {
-            // 위(+Y)를 향하도록 감기 방향 통일
-            const A = v[t[0]], B = v[t[1]], Cc = v[t[2]];
-            const cross = (B.x - A.x) * (Cc.y - A.y) - (B.y - A.y) * (Cc.x - A.x);
-            for (const q of (cross > 0 ? [t[0], t[2], t[1]] : t)) { pos.push(v[q].x, LAND_H, v[q].y); nor.push(0, 1, 0); prov.push(local); }
-          }
-          for (let k = 0; k < r.length; k += 2) {
-            const j = (k + 2) % r.length;
-            if (cnt.get(ek(r[k], r[k + 1], r[j], r[j + 1])) !== 1) continue;
-            const x1 = r[k], z1 = r[k + 1], x2 = r[j], z2 = r[j + 1];
-            let nx = z2 - z1, nz = -(x2 - x1); const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
-            if (!cw) { nx = -nx; nz = -nz; }
-            const quad = [[x1, 0, z1], [x2, 0, z2], [x2, LAND_H, z2], [x1, 0, z1], [x2, LAND_H, z2], [x1, LAND_H, z1]];
-            for (const [x, y, z] of quad) { pos.push(x, y, z); nor.push(nx, 0, nz); prov.push(local); }
-          }
+    // 변 공유 수: 1이면 해안(옆면·진한 선), 2 이상이면 이웃 지방과의 경계
+    this.edgeOwners = new Map();
+    P.forEach((p, i) => { for (const r of p.rings) for (let k = 0; k < r.length; k += 2) { const j = (k + 2) % r.length; const e = ek(r[k], r[k + 1], r[j], r[j + 1]); const o = this.edgeOwners.get(e); if (o) o.push(i); else this.edgeOwners.set(e, [i]); } });
+    const pos = [], nor = [], prov = [];
+    P.forEach((p, i) => {
+      // 윗면: 조각(바깥 고리 + 구멍)마다 삼각분할
+      let ri = 0;
+      for (const cnt of p.polys || p.rings.map(() => 1)) {
+        const rs = p.rings.slice(ri, ri + cnt); ri += cnt;
+        const toV = (r) => { const v = []; for (let k = 0; k < r.length; k += 2) v.push(new THREE.Vector2(r[k], r[k + 1])); return v; };
+        const outer = toV(rs[0]), holes = rs.slice(1).map(toV);
+        const all = outer.concat(...holes);
+        for (const t of THREE.ShapeUtils.triangulateShape(outer, holes)) {
+          const A = all[t[0]], B = all[t[1]], Cc = all[t[2]];
+          const cross = (B.x - A.x) * (Cc.y - A.y) - (B.y - A.y) * (Cc.x - A.x);
+          for (const q of (cross > 0 ? [t[0], t[2], t[1]] : t)) { pos.push(all[q].x, LAND_H, all[q].y); nor.push(0, 1, 0); prov.push(i); }
         }
-      });
-      const g = new THREE.BufferGeometry();
-      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-      g.setAttribute('prov', new THREE.Float32BufferAttribute(prov, 1));
-      const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide }); // 옆면 방향이 섞여 있어 양면
-      const u = mat.userData.u = {
-        uProvCol: { value: Array.from({ length: 48 }, () => new THREE.Color(0x888888)) },
-        uOccProv: { value: new Int32Array([-1, -1, -1, -1]) }, uOccN: { value: new Int32Array(4) },
-        uOccPts: { value: Array.from({ length: 48 }, () => new THREE.Vector2()) },
-        uOccAdv: { value: new Float32Array(4) }, uOccCol: { value: Array.from({ length: 4 }, () => new THREE.Color()) },
-        uTimeL: this.time, uNoise: noiseTex,
-      };
-      mat.userData.slots = [null, null, null, null]; // 점령 진행 슬롯 → 지방 번호
-      mat.userData.tweens = new Map();
-      mat.onBeforeCompile = (s) => {
-        Object.assign(s.uniforms, u);
-        s.vertexShader = s.vertexShader.replace('#include <common>', '#include <common>\nattribute float prov;\nvarying vec3 vW;\nflat varying int vProv;')
-          .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvW = (modelMatrix * vec4(transformed,1.0)).xyz;\nvProv = int(prov + 0.5);');
-        s.fragmentShader = s.fragmentShader.replace('#include <common>', `#include <common>
-            varying vec3 vW; flat varying int vProv;
-            uniform vec3 uProvCol[48];
-            uniform int uOccProv[4]; uniform int uOccN[4]; uniform vec2 uOccPts[48]; uniform float uOccAdv[4]; uniform vec3 uOccCol[4]; uniform float uTimeL;
-            ` + noiseChunk)
-          .replace('#include <color_fragment>', `#include <color_fragment>
-            diffuseColor.rgb *= uProvCol[vProv];
-            float t = fbmT(vW.xz * 0.9);
-            float t2 = vnT(vW.xz * 4.0);
-            diffuseColor.rgb *= 0.78 + 0.34 * t + 0.1 * (t2 - 0.5);
-            for (int s = 0; s < 4; s++) {
-              if (uOccProv[s] != vProv || uOccN[s] == 0) continue;
-              float md = 1e9;
-              for (int i = 0; i < 12; i++) { if (i >= uOccN[s]) break; md = min(md, distance(vW.xz, uOccPts[s * 12 + i])); }
-              float adv = uOccAdv[s];
-              float edge = adv - md + (vnT(vW.xz * 1.3) - 0.5) * 0.9 * min(1.0, adv);
-              if (edge > 0.0) {
-                float stripe = step(0.55, fract((vW.x - vW.z) * 2.2));
-                diffuseColor.rgb = mix(diffuseColor.rgb, uOccCol[s] * (0.78 + 0.34 * t) * (1.0 - 0.18 * stripe), 0.9);
-              }
-              float glow = smoothstep(0.32, 0.0, abs(edge)) * step(0.02, adv);
-              diffuseColor.rgb += vec3(1.0, 0.42, 0.1) * glow * (0.55 + 0.45 * sin(uTimeL * 9.0 + md * 5.0));
-            }
-            if (vW.y < ${(LAND_H - 0.01).toFixed(3)}) diffuseColor.rgb *= 0.55;`);
-      };
-      mat.customProgramCacheKey = () => 'land-prov';
-      const m = new THREE.Mesh(g, mat);
-      m.position.y = (rankOf.get(ci) / C.length) * 0.03; // 작은 나라(엔클레이브)가 위로
-      m.receiveShadow = true;
-      m.userData.country = ci;
-      this.group.add(m);
-      this.meshes.push(m);
+      }
+      // 옆면: 해안(공유되지 않은 변)만
+      for (const r of p.rings) for (let k = 0; k < r.length; k += 2) {
+        const j = (k + 2) % r.length;
+        if (this.edgeOwners.get(ek(r[k], r[k + 1], r[j], r[j + 1])).length !== 1) continue;
+        const x1 = r[k], z1 = r[k + 1], x2 = r[j], z2 = r[j + 1];
+        let nx = z2 - z1, nz = -(x2 - x1); const l = Math.hypot(nx, nz) || 1; nx /= l; nz /= l;
+        for (const [x, y, z] of [[x1, 0, z1], [x2, 0, z2], [x2, LAND_H, z2], [x1, 0, z1], [x2, LAND_H, z2], [x1, LAND_H, z1]]) { pos.push(x, y, z); nor.push(nx, 0, nz); prov.push(i); }
+      }
     });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute('prov', new THREE.Float32BufferAttribute(prov, 1));
+    const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide });
+    const S = 8; // 동시에 표시하는 점령 진행 수
+    const u = this.occU = {
+      uProvTex: { value: this.colTex },
+      uOccProv: { value: new Int32Array(S).fill(-1) }, uOccN: { value: new Int32Array(S) },
+      uOccPts: { value: Array.from({ length: S * 12 }, () => new THREE.Vector2()) },
+      uOccAdv: { value: new Float32Array(S) }, uOccCol: { value: Array.from({ length: S }, () => new THREE.Color()) },
+      uTimeL: this.time, uNoise: noiseTex,
+    };
+    this.slots = new Array(S).fill(null); this.fade = new Array(S).fill(false);
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, u);
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float prov;\nvarying vec3 vW;\nflat varying int vProv;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvW = (modelMatrix * vec4(transformed,1.0)).xyz;\nvProv = int(prov + 0.5);');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+          varying vec3 vW; flat varying int vProv;
+          uniform sampler2D uProvTex;
+          uniform int uOccProv[${S}]; uniform int uOccN[${S}]; uniform vec2 uOccPts[${S * 12}]; uniform float uOccAdv[${S}]; uniform vec3 uOccCol[${S}]; uniform float uTimeL;
+          ` + noiseChunk)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          diffuseColor.rgb *= texelFetch(uProvTex, ivec2(vProv % ${this.TW}, vProv / ${this.TW}), 0).rgb;
+          float t = fbmT(vW.xz * 0.9);
+          float t2 = vnT(vW.xz * 4.0);
+          diffuseColor.rgb *= 0.78 + 0.34 * t + 0.1 * (t2 - 0.5);
+          for (int s = 0; s < ${S}; s++) {
+            if (uOccProv[s] != vProv || uOccN[s] == 0) continue;
+            float md = 1e9;
+            for (int i = 0; i < 12; i++) { if (i >= uOccN[s]) break; md = min(md, distance(vW.xz, uOccPts[s * 12 + i])); }
+            float adv = uOccAdv[s];
+            float edge = adv - md + (vnT(vW.xz * 1.3) - 0.5) * 0.9 * min(1.0, adv);
+            if (edge > 0.0) {
+              float stripe = step(0.55, fract((vW.x - vW.z) * 2.2));
+              diffuseColor.rgb = mix(diffuseColor.rgb, uOccCol[s] * (0.78 + 0.34 * t) * (1.0 - 0.18 * stripe), 0.9);
+            }
+            float glow = smoothstep(0.32, 0.0, abs(edge)) * step(0.02, adv);
+            diffuseColor.rgb += vec3(1.0, 0.42, 0.1) * glow * (0.55 + 0.45 * sin(uTimeL * 9.0 + md * 5.0));
+          }
+          if (vW.y < ${(LAND_H - 0.01).toFixed(3)}) diffuseColor.rgb *= 0.55;`);
+    };
+    mat.customProgramCacheKey = () => 'land-world';
+    const m = new THREE.Mesh(g, mat);
+    m.receiveShadow = true;
+    this.group.add(m);
+    this.meshes = [m];
+    this.land = m;
+    this.buildPickGrid();
   }
 
-  // 클릭한 위치의 지방 번호
-  provAt(hit) {
-    const ci = hit.object.userData.country;
-    const local = Math.round(hit.object.geometry.attributes.prov.getX(hit.face.a));
-    return this.world.countries[ci].provs[local];
+  // 클릭 위치 → 지방: 삼각형 15만 개를 광선 판정하는 대신 격자 색인 + 다각형 포함 판정 (폰에서 빠름)
+  buildPickGrid() {
+    const P = this.world.provinces, cell = 2;
+    this.grid = new Map(); this.cell = cell;
+    this.bbox = P.map((p) => { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; for (const r of p.rings) for (let k = 0; k < r.length; k += 2) { a = Math.min(a, r[k]); c = Math.max(c, r[k]); b = Math.min(b, r[k + 1]); d = Math.max(d, r[k + 1]); } return [a, b, c, d]; });
+    this.bbox.forEach(([a, b, c, d], i) => { for (let gx = Math.floor(a / cell); gx <= Math.floor(c / cell); gx++) for (let gz = Math.floor(b / cell); gz <= Math.floor(d / cell); gz++) { const k = gx + ',' + gz; const l = this.grid.get(k); if (l) l.push(i); else this.grid.set(k, [i]); } });
   }
-  meshOf(pi) { return this.meshes[this.world.provinces[pi].c]; }
-  heightOf(pi) { return LAND_H + this.meshOf(pi).position.y; }
+  pickAt(x, z) {
+    const list = this.grid.get(Math.floor(x / this.cell) + ',' + Math.floor(z / this.cell)); if (!list) return null;
+    for (const i of list) {
+      const [a, b, c, d] = this.bbox[i]; if (x < a || x > c || z < b || z > d) continue;
+      let inn = false;
+      for (const r of this.world.provinces[i].rings) for (let k = 0, j = r.length - 2; k < r.length; j = k, k += 2) if ((r[k + 1] > z) !== (r[j + 1] > z) && x < ((r[j] - r[k]) * (z - r[k + 1])) / (r[j + 1] - r[k + 1]) + r[k]) inn = !inn;
+      if (inn) return i;
+    }
+    return null;
+  }
+  provAt(hit) { return Math.round(hit.object.geometry.attributes.prov.getX(hit.face.a)); }
+  heightOf() { return LAND_H; }
 
   buildBorders() {
-    // 나라 국경(진하게) + 지방 경계(옅게)
-    const cpts = [], ppts = [];
-    this.world.countries.forEach((c, i) => {
-      const y = LAND_H + this.meshes[i].position.y + 0.004;
-      for (const r of c.rings) for (let k = 0; k < r.length; k += 2) { const j = (k + 2) % r.length; cpts.push(r[k], y, r[k + 1], r[j], y, r[j + 1]); }
-      if (c.provs.length > 1) for (const pi of c.provs) for (const r of this.world.provinces[pi].rings) for (let k = 0; k < r.length; k += 2) { const j = (k + 2) % r.length; ppts.push(r[k], y - 0.001, r[k + 1], r[j], y - 0.001, r[j + 1]); }
-    });
+    // 나라 경계·해안(진하게) + 같은 나라 안 지방 경계(옅게) — 모두 지방 테두리에서 계산하므로 서로 딱 맞음
+    const P = this.world.provinces, cpts = [], ppts = [], y = LAND_H + 0.004;
+    for (const [e, owners] of this.edgeOwners) {
+      const [a, b] = e.split('|'); const [x1, z1] = a.split(',').map(Number), [x2, z2] = b.split(',').map(Number);
+      const country = owners.length === 1 || P[owners[0]].c !== P[owners[1]].c;
+      (country ? cpts : ppts).push(x1, country ? y : y - 0.001, z1, x2, country ? y : y - 0.001, z2);
+    }
     const mk = (pts, color, opacity) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity })); };
-    this.provBorders = mk(ppts, 0x2a2f36, 0.35);
+    this.provBorders = mk(ppts, 0x2a2f36, 0.4);
     this.borders = mk(cpts, 0x14171b, 0.85);
     this.group.add(this.provBorders, this.borders);
   }
 
   outline(idx, color = 0xffffff) {
-    if (this.highlight) { this.group.remove(this.highlight); this.highlight.geometry.dispose(); this.highlight = null; }
+    if (this.highlight) { this.group.remove(this.highlight); this.highlight.geometry.dispose(); this.highlight.material.dispose(); this.highlight = null; }
     if (idx == null) return;
-    const p = this.world.provinces[idx]; const y = this.heightOf(idx) + 0.02;
+    const p = this.world.provinces[idx]; const y = LAND_H + 0.02;
     const pts = [];
     for (const r of p.rings) for (let k = 0; k < r.length; k += 2) { const j = (k + 2) % r.length; pts.push(r[k], y, r[k + 1], r[j], y, r[j + 1]); }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
@@ -216,47 +228,45 @@ export class WorldMap {
     this.group.add(this.highlight);
   }
 
-  // ---------- 점령 진행 (나라 메시마다 동시에 4곳까지) ----------
+  // ---------- 점령 진행 (세계 전체 동시에 8곳까지) ----------
   slot(pi, create) {
-    const ud = this.meshOf(pi).material.userData, local = this.provLocal[pi];
-    let s = ud.slots.indexOf(local);
-    if (s < 0 && create) { s = ud.slots.indexOf(null); if (s < 0) s = 0; ud.slots[s] = local; }
-    return [ud, s];
+    let s = this.slots.indexOf(pi);
+    if (s < 0 && create) { s = this.slots.indexOf(null); if (s < 0) s = this.fade.indexOf(true); if (s < 0) s = 0; this.slots[s] = pi; }
+    return s;
   }
   setOcc(pi, pts, color) {
-    const [ud, s] = this.slot(pi, true), u = ud.u;
+    const s = this.slot(pi, true), u = this.occU;
     const step = Math.max(1, Math.ceil(pts.length / 12));
     let n = 0; for (let i = 0; i < pts.length && n < 12; i += step) u.uOccPts.value[s * 12 + n++].set(pts[i].x, pts[i].z);
-    u.uOccN.value[s] = n; u.uOccProv.value[s] = this.provLocal[pi]; u.uOccCol.value[s].set(color); u.uOccAdv.value[s] = 0;
-    ud.fade = ud.fade || [false, false, false, false]; ud.fade[s] = false;
+    u.uOccN.value[s] = n; u.uOccProv.value[s] = pi; u.uOccCol.value[s].set(color); u.uOccAdv.value[s] = 0; this.fade[s] = false;
   }
-  hasOcc(pi) { const [, s] = this.slot(pi, false); return s >= 0; }
-  setOccAdv(pi, adv) { const [ud, s] = this.slot(pi, false); if (s >= 0) ud.u.uOccAdv.value[s] = adv; }
-  clearOcc(pi) {
-    const [ud, s] = this.slot(pi, false); if (s < 0) return;
-    ud.u.uOccN.value[s] = 0; ud.u.uOccProv.value[s] = -1; ud.u.uOccAdv.value[s] = 0; ud.slots[s] = null; if (ud.fade) ud.fade[s] = false;
-  }
-  fadeOcc(pi) { const [ud, s] = this.slot(pi, false); if (s >= 0) { ud.fade = ud.fade || [false, false, false, false]; ud.fade[s] = true; } } // 격퇴되면 서서히 되돌림
+  hasOcc(pi) { return this.slot(pi, false) >= 0; }
+  setOccAdv(pi, adv) { const s = this.slot(pi, false); if (s >= 0) this.occU.uOccAdv.value[s] = adv; }
+  clearOcc(pi) { const s = this.slot(pi, false); if (s < 0) return; const u = this.occU; u.uOccN.value[s] = 0; u.uOccProv.value[s] = -1; u.uOccAdv.value[s] = 0; this.slots[s] = null; this.fade[s] = false; }
+  fadeOcc(pi) { const s = this.slot(pi, false); if (s >= 0) this.fade[s] = true; } // 격퇴되면 서서히 되돌림
 
+  writeCol(i, c) {
+    const o = i * 4, h = c.getHex(THREE.SRGBColorSpace);
+    this.colData[o] = (h >> 16) & 255; this.colData[o + 1] = (h >> 8) & 255; this.colData[o + 2] = h & 255;
+    this.colDirty = true;
+  }
   setColor(pi, color, tween = false) {
-    const ud = this.meshOf(pi).material.userData, local = this.provLocal[pi];
     const target = new THREE.Color(color);
-    if (!tween) { ud.u.uProvCol.value[local].copy(target); ud.tweens.delete(local); return; }
-    ud.tweens.set(local, { from: ud.u.uProvCol.value[local].clone(), to: target, t: 0 });
+    if (!tween) { this.cur[pi].copy(target); this.tweens.delete(pi); this.writeCol(pi, target); return; }
+    this.tweens.set(pi, { from: this.cur[pi].clone(), to: target, t: 0 });
   }
 
   update(dt) {
     this.time.value += dt;
-    for (const m of this.meshes) {
-      const ud = m.material.userData;
-      if (ud.fade) for (let s = 0; s < 4; s++) if (ud.fade[s]) { ud.u.uOccAdv.value[s] -= dt * 3; if (ud.u.uOccAdv.value[s] <= 0) { const local = ud.slots[s]; this.clearOcc(this.world.countries[m.userData.country].provs[local]); } }
-      for (const [local, tw] of ud.tweens) {
-        tw.t = Math.min(1, tw.t + dt / 1.2);
-        const f = tw.t < 1 ? (Math.sin(tw.t * 30) > 0 ? 1 : 0.4) * tw.t : 1; // 깜빡이며 전환
-        ud.u.uProvCol.value[local].copy(tw.from).lerp(tw.to, tw.t).multiplyScalar(0.7 + 0.3 * f + (tw.t < 1 ? 0.3 : 0));
-        if (tw.t >= 1) { ud.u.uProvCol.value[local].copy(tw.to); ud.tweens.delete(local); }
-      }
+    for (let s = 0; s < this.fade.length; s++) if (this.fade[s]) { this.occU.uOccAdv.value[s] -= dt * 3; if (this.occU.uOccAdv.value[s] <= 0) this.clearOcc(this.slots[s]); }
+    for (const [pi, tw] of this.tweens) {
+      tw.t = Math.min(1, tw.t + dt / 1.2);
+      const f = tw.t < 1 ? (Math.sin(tw.t * 30) > 0 ? 1 : 0.4) * tw.t : 1; // 깜빡이며 전환
+      const c = this.cur[pi].copy(tw.from).lerp(tw.to, tw.t).multiplyScalar(0.7 + 0.3 * f + (tw.t < 1 ? 0.3 : 0));
+      if (tw.t >= 1) { c.copy(tw.to); this.tweens.delete(pi); }
+      this.writeCol(pi, c);
     }
+    if (this.colDirty) { this.colDirty = false; this.colTex.needsUpdate = true; } // 색상표는 바뀐 프레임에만 GPU로 (20KB)
   }
 
   buildSeaLabels() {
