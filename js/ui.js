@@ -1,6 +1,6 @@
 // 화면 UI: 시작 화면, 상단 정보, 생산, 선택 국가·공격, 뉴스, 밸런스 편집기
-import { UNITS, UNIT_KEYS, DEFAULT_BAL, flagOf, josa } from './game.js?v=202609281658';
-import { leaderOf, leaderText, leaderPhoto } from './leaders.js?v=202609281658';
+import { UNITS, UNIT_KEYS, DEFAULT_BAL, flagOf, josa } from './game.js?v=202609281745';
+import { leaderOf, leaderText, leaderPhoto } from './leaders.js?v=202609281745';
 
 const $ = (s, r = document) => r.querySelector(s);
 const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };

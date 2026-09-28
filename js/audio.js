@@ -421,6 +421,56 @@ export class Sound {
     else { [[62, 65, 69], [58, 62, 65], [57, 61, 64], [50, 53, 57]].forEach((ch, i) => this.brassChord(ch, t + i * 0.8, i === 3 ? 3 : 0.75, 0.45)); }
     this.target = 0;
   }
+  // ───── 세계 정복 피날레 ─────
+  finaleIntro() {
+    if (!this.ctx || this.pref.muted) return;
+    this.ensureBuffers();
+    const t = this.ctx.currentTime + 0.05, bus = this.sfxBus, o = this.out(bus, 0, 0.8);
+    for (let i = 0; i < 22; i++) this.timpani(t + i * 0.1, 0.12 + 0.75 * (i / 22) ** 1.6, bus);   // 긴 팀파니 롤
+    const T = t + 2.2;
+    const cym = this.buf('white', T, 4); cym.connect(this.filt('highpass', 4000)).connect(this.gainEnv(T, 0.005, 0.55, 3.5)).connect(o);
+    this.brassChord([38, 45, 50, 54, 57, 62, 66, 69], T, 2.4, 1.0, bus);
+    this.choir([50, 54, 57, 62, 66], T, 2.6, 0.4, bus);
+  }
+  coronation() {
+    if (!this.ctx || this.pref.muted) return;
+    const t = this.ctx.currentTime + 0.05, bus = this.sfxBus;
+    this.bells([74, 78, 81, 86, 90, 93], t, 0.16);
+    [[43, 50, 55, 59, 62, 67], [45, 52, 57, 61, 64, 69], [38, 45, 50, 54, 57, 62, 66, 69]].forEach((ch, i) => {
+      this.brassChord(ch, t + 0.3 + i * 0.7, i === 2 ? 2.8 : 0.6, 0.85, bus); this.timpani(t + 0.3 + i * 0.7, 0.8, bus);
+    });
+    this.choir([62, 66, 69, 74], t + 1.7, 3, 0.4, bus);
+  }
+  medal() {
+    if (!this.ctx || this.pref.muted) return;
+    const t = this.ctx.currentTime + 0.02;
+    this.timpani(t, 0.45); this.bells([81, 86], t, 0.1);
+  }
+  bow(i = 0) {
+    if (!this.ctx || this.pref.muted) return;
+    const t = this.ctx.currentTime + 0.02;
+    this.timpani(t, 0.5 + (i % 3) * 0.08);
+    this.brassChord([[38, 45, 50], [41, 48, 53], [43, 50, 55]][i % 3], t, 0.25, 0.35);
+  }
+  anthem() {
+    if (!this.ctx || this.pref.muted) return;
+    const t = this.ctx.currentTime + 0.05, bus = this.sfxBus;
+    // 승전 행진: D - G - A - D
+    [[50, 54, 57, 62, 66], [55, 59, 62, 67, 71], [57, 61, 64, 69, 73], [50, 54, 57, 62, 66, 69, 74]].forEach((ch, i) => {
+      this.brassChord(ch, t + i * 0.55, i === 3 ? 3 : 0.45, 0.8, bus); this.timpani(t + i * 0.55, 0.7, bus);
+    });
+    this.choir([62, 66, 69, 74, 78], t + 1.65, 3.5, 0.42, bus);
+    this.bells([86, 90, 93, 98], t + 1.7, 0.14);
+    if (this.smp?.cannon) [0.2, 1.1, 2.0, 2.9, 3.8].forEach((d) => this.play('cannon', this.out(bus, (Math.random() - 0.5) * 0.9, 0.7), t + 1.65 + d, { gain: 0.45, rate: 0.9 }));
+  }
+  firework() {
+    if (!this.ok('fw', 0.25)) return;
+    this.ensureBuffers();
+    const c = this.ctx, t = c.currentTime + 0.02, o = this.out(this.sfxBus, (Math.random() - 0.5) * 1.2, 0.8);
+    const n = this.buf('white', t, 1.2); n.connect(this.filt('bandpass', 1800 + Math.random() * 1500, 0.7)).connect(this.gainEnv(t, 0.003, 0.35, 0.9)).connect(o);
+    const s = c.createOscillator(); s.frequency.setValueAtTime(90, t); s.frequency.exponentialRampToValueAtTime(40, t + 0.3);
+    s.connect(this.gainEnv(t, 0.003, 0.5, 0.35)).connect(o); s.start(t); s.stop(t + 0.5);
+  }
   click() {
     if (!this.ok('click', 0.03)) return;
     const c = this.ctx, t = c.currentTime, o = this.out(this.sfxBus, 0, 0);

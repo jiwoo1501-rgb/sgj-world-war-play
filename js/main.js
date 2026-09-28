@@ -1,20 +1,21 @@
 import * as THREE from 'three';
-import { leaderText, leaderPhoto } from './leaders.js?v=202609281658';
+import { leaderText, leaderPhoto } from './leaders.js?v=202609281745';
+import { playFinale } from './finale.js?v=202609281745';
 import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Game, UNITS } from './game.js?v=202609281658';
-import { WorldMap, LAND_H } from './map.js?v=202609281658';
-import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js?v=202609281658';
-import { FX, setParticleBudget } from './fx.js?v=202609281658';
-import { makeArrow, computeFront, FrontLine } from './warfx.js?v=202609281658';
-import { WarMap, precomputeBorders } from './warmap.js?v=202609281658';
-import { Minimap } from './minimap.js?v=202609281658';
-import { Garrisons } from './garrison.js?v=202609281658';
-import { UI } from './ui.js?v=202609281658';
-import { Sound } from './audio.js?v=202609281658';
+import { Game, UNITS } from './game.js?v=202609281745';
+import { WorldMap, LAND_H } from './map.js?v=202609281745';
+import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js?v=202609281745';
+import { FX, setParticleBudget } from './fx.js?v=202609281745';
+import { makeArrow, computeFront, FrontLine } from './warfx.js?v=202609281745';
+import { WarMap, precomputeBorders } from './warmap.js?v=202609281745';
+import { Minimap } from './minimap.js?v=202609281745';
+import { Garrisons } from './garrison.js?v=202609281745';
+import { UI } from './ui.js?v=202609281745';
+import { Sound } from './audio.js?v=202609281745';
 
 const U = 0.42; // 유닛 크기 배율(지도 단위)
-const world = await fetch('data/world.json?v=202609281658').then((r) => r.json());
+const world = await fetch('data/world.json?v=202609281745').then((r) => r.json());
 
 // ---------- 렌더러·장면 ----------
 // 폰·태블릿 판별: 화면을 손가락으로 조작하는 기기
@@ -205,7 +206,15 @@ function startGame(opts, saved) {
     }, i * 140);
     fx.burn(x, tY(e.target), y, 10, 1.2);
   });
-  game.on('over', (o) => { ui.over({ ...o, stats: game.stats, day: game.day }); speed = 0; sound.gameOver(o.win); try { localStorage.removeItem(SAVE_KEY); } catch {} });
+  game.on('over', (o) => {
+    speed = 0; try { localStorage.removeItem(SAVE_KEY); } catch {}
+    const show = () => ui.over({ ...o, stats: game.stats, day: game.day });
+    if (!o.win) { sound.gameOver(false); show(); return; }
+    // 승리: 수도를 비추고 대관식·복종 의식 피날레 후 결과 화면
+    const c = game.territories[ui.me.capital]; setView(c.cx, c.cy, 26);
+    sound.target = 0;
+    playFinale({ game, me: ui.me, stats: game.stats, day: game.day, sound, mobile: IS_MOBILE }).then(show);
+  });
   minimap = new Minimap(document.getElementById('minimap'), world, game, (x, z) => setView(x, z, 30));
   game.on('capture', () => { minimap.dirty = true; });
   ui.bind(game, {
@@ -649,6 +658,7 @@ renderer.domElement.addEventListener('webglcontextlost', (e) => {
   setTimeout(() => location.reload(), 1500);
 });
 window.__sgj.fx = fx; window.__sgj.strikes = strikes;
+window.__sgj.finale = () => game.emit('over', { win: true });
 window.__sgj.view = (x, z, d) => setView(x, z, d, false);
 window.__sgj.frame = (n = 1, dt = 1 / 30) => { for (let i = 0; i < n; i++) frame(dt); };
 

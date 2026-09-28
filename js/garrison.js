@@ -4,9 +4,9 @@
 //  - InstancedMesh로 수백 대를 한 번에 그려 가볍게 유지
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { makeInstanced, variantKey } from './models.js?v=202609281658';
-import { project } from './map.js?v=202609281658';
-import { CITIES } from './cities.js?v=202609281658';
+import { makeInstanced, variantKey } from './models.js?v=202609281745';
+import { project } from './map.js?v=202609281745';
+import { CITIES } from './cities.js?v=202609281745';
 
 export const GARRISON_SHARE = 0.3; // 국경선 중 병력을 배치하는 비율
 const MAX = { inf: 1400, tank: 600, arty: 160, town: 200 };

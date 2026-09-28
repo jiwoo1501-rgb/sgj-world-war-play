@@ -372,3 +372,66 @@ tr.focus { background: rgba(242,216,143,0.1); }
 #info-stats .leader .ld-big { grid-row: span 2; width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gold); }
 .nation-opt .ld-sm { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold); vertical-align: middle; margin-left: 6px; }
 #info-stats .leader { background: rgba(0,0,0,0.3); border: 1px solid var(--line-soft); border-radius: 3px; padding: 6px 8px; }
+
+/* ───── 세계 정복 피날레 ───── */
+#finale { position: fixed; inset: 0; z-index: 200; overflow: hidden auto; background: radial-gradient(ellipse at 50% 35%, rgba(60,40,10,0.72), rgba(3,5,9,0.96) 70%);
+  opacity: 0; animation: fnIn 1s forwards; touch-action: pan-y; font-family: var(--body); }
+#finale.out { animation: fnOut .6s forwards; }
+@keyframes fnIn { to { opacity: 1; } }
+@keyframes fnOut { from { opacity: 1; } to { opacity: 0; } }
+#finale .fn-sky { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+#finale .fn-rays { position: fixed; left: 50%; top: 32%; width: 170vmax; height: 170vmax; margin: -85vmax 0 0 -85vmax; pointer-events: none; opacity: 0; transition: opacity 2s;
+  background: repeating-conic-gradient(from 0deg, rgba(242,216,143,0.14) 0deg 6deg, transparent 6deg 18deg); animation: fnSpin 60s linear infinite;
+  -webkit-mask: radial-gradient(circle, #000 0, transparent 60%); mask: radial-gradient(circle, #000 0, transparent 60%); }
+#finale.s1 .fn-rays { opacity: 1; }
+@keyframes fnSpin { to { transform: rotate(360deg); } }
+#finale .fn-skip { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 14px; z-index: 5; background: rgba(0,0,0,0.45); }
+#finale .fn-stage { position: relative; z-index: 3; min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 56px 16px 32px; text-align: center; }
+.fn-kicker { color: var(--gold); letter-spacing: 6px; font-size: 14px; opacity: 0; transform: translateY(10px); transition: all 1s .2s; }
+.fn-title { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(48px, 11vw, 96px); line-height: 1; color: var(--gold-2);
+  text-shadow: 0 0 30px rgba(242,216,143,0.55), 0 4px 0 #7a5a1e; opacity: 0; transform: scale(1.8); transition: all 1.2s cubic-bezier(.2,1.2,.3,1) .5s; }
+#finale.s1 .fn-kicker { opacity: 1; transform: none; }
+#finale.s1 .fn-title { opacity: 1; transform: none; }
+.fn-hero { display: flex; flex-direction: column; align-items: center; gap: 4px; opacity: 0; transform: scale(.6); transition: all 1s cubic-bezier(.2,1.3,.4,1); }
+#finale.s2 .fn-hero { opacity: 1; transform: none; }
+.fn-crown { width: 96px; height: 56px; margin-bottom: -18px; z-index: 1; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6)); transform: translateY(-120px); opacity: 0; transition: all .9s cubic-bezier(.3,1.6,.5,1) .9s; }
+#finale.s2 .fn-crown { transform: rotate(-6deg); opacity: 1; }
+.fn-portrait { padding: 5px; border-radius: 50%; background: conic-gradient(#f2d88f, #8a6a2e, #f2d88f, #c9a45c, #f2d88f); box-shadow: 0 0 40px rgba(242,216,143,0.6), 0 0 0 3px rgba(0,0,0,0.5); }
+.fn-face { display: block; width: clamp(120px, 30vw, 170px); height: clamp(120px, 30vw, 170px); border-radius: 50%; object-fit: cover; border: 3px solid #3a2a10; background: #1b2430; }
+.fn-flagface { display: grid; place-items: center; font-size: 80px; }
+.fn-name { margin-top: 8px; font-family: var(--display); font-size: clamp(30px, 7vw, 46px); color: #fff; text-shadow: 0 0 18px rgba(242,216,143,0.8), 0 3px 0 #000; }
+.fn-sub { color: var(--gold-2); font-size: 15px; letter-spacing: 1px; }
+.fn-deeds { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; width: min(520px, 100%); }
+.fn-deeds li { display: flex; align-items: center; gap: 12px; padding: 9px 14px; text-align: left; border: 1px solid var(--line); border-radius: 6px;
+  background: linear-gradient(90deg, rgba(242,216,143,0.16), rgba(0,0,0,0.35)); opacity: 0; transform: translateX(-30px); transition: all .5s; }
+.fn-deeds li.on { opacity: 1; transform: none; }
+.fn-deeds i { font-style: normal; font-size: 26px; }
+.fn-deeds b { display: block; color: var(--gold-2); font-size: 17px; }
+.fn-deeds small { color: var(--text); opacity: .85; font-size: 13px; }
+.fn-court { display: none; width: min(900px, 100%); flex-direction: column; align-items: center; gap: 12px; }
+#finale.s3 .fn-kicker, #finale.s4 .fn-deeds { display: none; }
+#finale.s3 .fn-title { font-size: clamp(34px, 7vw, 56px); }
+#finale.s3 .fn-face { width: clamp(100px, 24vw, 140px); height: clamp(100px, 24vw, 140px); }
+#finale.s4 .fn-title { font-size: clamp(30px, 6vw, 48px); }
+#finale.s4 .fn-face { width: clamp(90px, 22vw, 120px); height: clamp(90px, 22vw, 120px); }
+#finale.s4 .fn-court { display: flex; }
+.fn-oath { color: #fff; font-size: clamp(16px, 4vw, 20px); font-weight: 700; text-shadow: 0 2px 6px #000; min-height: 1.4em; }
+#finale.s5 .fn-oath { color: var(--gold-2); font-family: var(--display); font-weight: 400; font-size: clamp(20px, 5vw, 30px); animation: fnPulse 1.6s ease-in-out infinite; }
+@keyframes fnPulse { 50% { text-shadow: 0 0 24px rgba(242,216,143,0.9), 0 2px 6px #000; } }
+.fn-vassals { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); min-width: 0; gap: 12px 8px; width: 100%; }
+.fn-v { min-width: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; opacity: 0; transform: translateY(40px) scale(.8); transition: all .45s cubic-bezier(.2,1.3,.4,1); }
+.fn-v.in { opacity: 1; transform: none; }
+.fn-v .fn-body { position: relative; perspective: 260px; }
+.fn-vface { display: block; width: 62px; height: 62px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gold); background: #1b2430; transform-origin: 50% 100%; transition: transform .45s cubic-bezier(.4,1.6,.5,1), filter .45s; }
+.fn-v .fn-flagface { font-size: 36px; }
+.fn-v.bow .fn-vface { transform: rotateX(52deg) translateY(14px) scale(.86); filter: brightness(.8) saturate(.8); }
+.fn-knee { position: absolute; left: 50%; bottom: -6px; width: 70px; height: 10px; margin-left: -35px; border-radius: 50%; background: radial-gradient(rgba(0,0,0,0.6), transparent 70%); opacity: 0; transition: opacity .4s; }
+.fn-v.bow .fn-knee { opacity: 1; }
+.fn-v.bow::after { content: '충성'; margin-top: -2px; font-size: 10px; padding: 0 6px; border-radius: 8px; background: var(--gold); color: #1b1305; font-weight: 700; order: -1; transform: translateY(4px); animation: fnIn .3s forwards; }
+.fn-v b { font-size: 12px; color: #fff; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.fn-v small { font-size: 10px; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.fn-end { opacity: 0; pointer-events: none; transition: opacity .8s; }
+#finale.s6 .fn-end { opacity: 1; pointer-events: auto; }
+.fn-end .primary { font-size: 17px; padding: 10px 26px; }
+@media (prefers-reduced-motion: reduce) { #finale .fn-rays { animation: none; } }
+@media (max-width: 600px) { .fn-vassals { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px 4px; } .fn-vface { width: 52px; height: 52px; } .fn-deeds li { padding: 7px 10px; } .fn-deeds b { font-size: 15px; } }
