@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { leaderText, leaderPhoto } from './leaders.js';
 import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Game, UNITS } from './game.js';
@@ -240,7 +241,8 @@ function buildNationVis(n) {
   const gar = null; // 수도 경비 병력은 garrison.js가 한꺼번에 그림
   const div = document.createElement('div');
   div.className = 'nlabel' + (n.isPlayer ? ' me' : '');
-  div.innerHTML = `<span class="fl">${n.flag}</span><span class="nm">${n.name}</span><span class="pw"></span>`;
+  const ld = leaderText(n.id);
+  div.innerHTML = `${leaderPhoto(n.id, 'ld-ph')}<span class="fl">${n.flag}</span><span class="nm">${n.name}${ld ? `<small class="ld">${ld}</small>` : ''}</span><span class="pw"></span>`;
   div.style.setProperty('--c', n.color);
   div.onclick = () => select(n.capital);
   const lab = new CSS2DObject(div); lab.position.set(0, 1.5 * s + 0.3, 0); g.add(lab);

@@ -1,5 +1,6 @@
 // 화면 UI: 시작 화면, 상단 정보, 생산, 선택 국가·공격, 뉴스, 밸런스 편집기
 import { UNITS, UNIT_KEYS, DEFAULT_BAL, flagOf, josa } from './game.js';
+import { leaderOf, leaderText, leaderPhoto } from './leaders.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
@@ -75,7 +76,7 @@ export class UI {
     const render = (q = '') => {
       list.innerHTML = '';
       this.nationList.filter((n) => !q || n.name.includes(q)).sort((a, b) => (b.id === pick) - (a.id === pick)).forEach((n) => {
-        const b = h(`<button class="nation-opt ${n.id === pick ? 'on' : ''}"><span class="fl">${n.flag}</span>${n.name}<small>GDP ${n.gdp >= 1000 ? (n.gdp / 1000).toFixed(1) + '조' : Math.round(n.gdp * 10) + '억'}$</small></button>`);
+        const b = h(`<button class="nation-opt ${n.id === pick ? 'on' : ''}"><span class="fl">${n.flag}</span>${n.name}${leaderPhoto(n.id, 'ld-sm')}<small>${leaderText(n.id) ? leaderText(n.id) + ' · ' : ''}GDP ${n.gdp >= 1000 ? (n.gdp / 1000).toFixed(1) + '조' : Math.round(n.gdp * 10) + '억'}$</small></button>`);
         b.onclick = () => { pick = n.id; render(q); };
         list.appendChild(b);
       });
@@ -203,7 +204,8 @@ export class UI {
       $('#info-bal').onclick = () => this.openBalance(O.id);
       if (!atk.hidden) this.renderAttack();
     }
-    $('#info-stats').innerHTML = `
+    const L = leaderOf(O.id);
+    $('#info-stats').innerHTML = (L ? `<div class="leader">${leaderPhoto(O.id, 'ld-big')}<span>${L[0]}</span><b>${L[1]}</b></div>` : '') + `
       <div><span>소속 국가</span><b style="font-family:var(--body);font-size:14px">${O.flag} ${O.name}</b></div>
       <div><span>이 지방 방어력</span><b>${fmt(g.defensePower(O, T))}</b></div>
       <div><span>국가 전투력</span><b>${fmt(pow)}</b></div>
