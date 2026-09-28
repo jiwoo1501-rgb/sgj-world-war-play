@@ -1,5 +1,5 @@
 // 세계 정복 피날레: 승리한 지도자 대관식 → 업적 → 각국 지도자 복종 의식 → 불꽃놀이
-import { leaderOf, leaderPhoto } from './leaders.js?v=202609281745';
+import { leaderOf, leaderPhoto } from './leaders.js?v=202609282049';
 
 const wait = (ms, skip) => new Promise((r) => { const t = setTimeout(r, ms); skip.list.push(() => { clearTimeout(t); r(); }); });
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

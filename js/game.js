@@ -7,7 +7,7 @@ export const UNITS = {
   missile: { name: '미사일', icon: '🚀', cost: 50, pow: 12, cls: 'strike' },
 };
 export const UNIT_KEYS = Object.keys(UNITS);
-export const WIN_SHARE = 0.9; // 세계 GDP 90%를 장악하면 승리
+export const WIN_SHARE = 0.6; // 세계 GDP 60%를 장악하면 승리
 export const SPEED = { land: 1.6, sea: 3.2, air: 14, missile: 22 };
 const AIR_RANGE = 70, MISSILE_RANGE = 130;
 

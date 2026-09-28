@@ -73,22 +73,22 @@ const builders = {
     g.push(part(box(0.17, 0.2, 0.23), vest, M(0.012, 0.61, 0)));                                          // 방탄조끼
     for (const z of [-0.06, 0, 0.06]) g.push(part(box(0.04, 0.06, 0.045), C.tan, M(0.1, 0.56, z)));       // 탄창 파우치
     g.push(part(box(0.1, 0.2, 0.18), S.dark, M(-0.13, 0.62, 0)));                                        // 배낭
-    g.push(part(cyl(0.03, 0.03, 0.18, 8), S.base, M(-0.13, 0.75, 0, H)));                                // 침낭
+    g.push(part(cyl(0.03, 0.03, 0.18, 6), S.base, M(-0.13, 0.75, 0, H)));                                // 침낭
     g.push(part(box(0.04, 0.05, 0.12), 0xffffff, M(-0.02, 0.66, 0.117), TINT));                           // 어깨 국기 패치
     g.push(part(box(0.1, 0.012, 0.17), 0xffffff, M(-0.13, 0.725, 0), TINT));                              // 배낭 위 식별 천
-    g.push(part(cyl(0.079, 0.079, 0.02, 14), 0xffffff, M(0.0, 0.83, 0), TINT));                             // 헬멧 띠
+    g.push(part(cyl(0.079, 0.079, 0.02, 10), 0xffffff, M(0.0, 0.83, 0), TINT));                             // 헬멧 띠
     // 팔: 소총을 든 자세
     g.push(part(box(0.06, 0.16, 0.06), uni, M(0.02, 0.62, -0.13, 0.25, 0, -0.5), CAMO));
     g.push(part(box(0.055, 0.15, 0.055), uni, M(0.12, 0.57, -0.1, 0.5, 0, -1.3), CAMO));
     g.push(part(box(0.06, 0.16, 0.06), uni, M(0.02, 0.62, 0.13, -0.3, 0, -0.35), CAMO));
     g.push(part(box(0.055, 0.15, 0.055), uni, M(0.15, 0.59, 0.07, -0.6, 0, -1.4), CAMO));
-    g.push(part(sph(0.028, 6, 5), C.black, M(0.2, 0.58, -0.05)));                                         // 장갑
-    g.push(part(sph(0.028, 6, 5), C.black, M(0.25, 0.6, 0.04)));
+    g.push(part(sph(0.028, 5, 3), C.black, M(0.2, 0.58, -0.05)));                                         // 장갑
+    g.push(part(sph(0.028, 5, 3), C.black, M(0.25, 0.6, 0.04)));
     // 머리·헬멧
-    g.push(part(cyl(0.035, 0.04, 0.05, 8), C.skin, M(0.01, 0.745, 0)));
-    g.push(part(sph(0.058, 12, 10), C.skin, M(0.015, 0.8, 0)));
-    g.push(part(sph(0.075, 14, 8, 0, PI * 2, 0, H * 1.08), S.base, M(0, 0.815, 0, 0, 0, 0.08, 1.05, 0.9, 1.0), CAMO));
-    g.push(part(cyl(0.078, 0.08, 0.012, 14), S.base, M(0.003, 0.81, 0)));                                // 헬멧 테
+    g.push(part(cyl(0.035, 0.04, 0.05, 6), C.skin, M(0.01, 0.745, 0)));
+    g.push(part(sph(0.058, 9, 6), C.skin, M(0.015, 0.8, 0)));
+    g.push(part(sph(0.075, 10, 5, 0, PI * 2, 0, H * 1.08), S.base, M(0, 0.815, 0, 0, 0, 0.08, 1.05, 0.9, 1.0), CAMO));
+    g.push(part(cyl(0.078, 0.08, 0.012, 10), S.base, M(0.003, 0.81, 0)));                                // 헬멧 테
     g.push(part(box(0.03, 0.03, 0.05), C.dark, M(0.075, 0.855, 0)));                                     // 야시경 마운트
     g.push(part(box(0.02, 0.018, 0.1), C.black, M(0.066, 0.8, 0)));                                      // 고글
     // K2 소총
@@ -98,7 +98,21 @@ const builders = {
     g.push(part(box(0.03, 0.08, 0.022), C.gun, M(0.2, 0.54, 0.02, 0, 0, 0.25)));                         // 탄창
     g.push(part(box(0.09, 0.045, 0.024), C.gun, M(0.04, 0.575, 0.02, 0, 0, 0.1)));                      // 개머리판
     g.push(part(box(0.06, 0.025, 0.02), C.black, M(0.19, 0.62, 0.02, 0, 0, 0.08)));                     // 조준경
-    return mergeGeometries(g).scale(1.25, 1.25, 1.25);
+    g.push(part(box(0.03, 0.02, 0.03), C.black, M(0.16, 0.648, 0.02)));                                  // 도트사이트
+    g.push(part(box(0.05, 0.02, 0.024), C.dark, M(0.35, 0.57, 0.02, 0, 0, 0.08)));                       // 전방 손잡이
+    g.push(part(cyl(0.004, 0.004, 0.36, 4), C.dark, M(0.08, 0.64, -0.06, 0.2, 0, 0.9)));                  // 소총 멜빵
+    // 세부 장구: 탄띠·수통·무전기 안테나·팔꿈치 보호대·어깨끈·목 보호대
+    g.push(part(box(0.155, 0.03, 0.235), C.olive2, M(0.005, 0.5, 0)));                                   // 탄띠
+    g.push(part(box(0.018, 0.014, 0.2), C.gold, M(0.085, 0.5, 0)));                                       // 버클
+    g.push(part(cyl(0.028, 0.028, 0.07, 6), C.olive2, M(-0.06, 0.47, 0.12)));                             // 수통
+    g.push(part(box(0.04, 0.05, 0.04), C.tan, M(0.06, 0.47, -0.1)));                                      // 구급낭
+    g.push(part(box(0.05, 0.08, 0.06), C.dark, M(-0.19, 0.64, 0.06)));                                   // 무전기
+    g.push(part(cyl(0.003, 0.003, 0.32, 4), C.black, M(-0.2, 0.84, 0.07, 0.1, 0, 0.1)));                // 안테나
+    for (const z of [-0.13, 0.13]) g.push(part(sph(0.03, 5, 3), C.olive2, M(0.08, 0.56, z)));            // 팔꿈치 보호대
+    for (const z of [-0.07, 0.07]) g.push(part(box(0.2, 0.012, 0.025), C.olive2, M(-0.02, 0.7, z, 0, 0, -0.35))); // 어깨끈
+    g.push(part(cyl(0.05, 0.055, 0.03, 8), C.olive2, M(0.01, 0.73, 0)));                                 // 목 보호대
+    g.push(part(box(0.012, 0.014, 0.05), C.skin, M(0.07, 0.785, 0)));                                     // 코
+    return mergeGeometries(g).scale(1.0, 1.0, 1.0);
   },
 
   // 전차: K2 흑표 (길이 약 1.3)
@@ -160,11 +174,11 @@ const builders = {
     const g = [];
     const body = S.base;
     g.push(part(side([[-0.62, 0.1], [0.52, 0.1], [0.62, 0.22], [0.5, 0.3], [-0.62, 0.3]], 0.54), body, null, CAMO));
-    for (const z of [-0.265, 0.265]) {
-      g.push(part(box(1.2, 0.035, 0.12), C.rubber, M(0, 0.02, z)));
-      for (let i = 0; i < 6; i++) g.push(part(cyl(0.07, 0.07, 0.11, 14), C.dark, M(-0.45 + i * 0.18, 0.09, z, H)));
-      g.push(part(box(1.15, 0.1, 0.02), body, M(0, 0.2, z + Math.sign(z) * 0.065), CAMO));
-    }
+    running(g, S, { n: 6, r: 0.07, len: 1.2 });
+    g.push(part(box(0.12, 0.2, 0.3), C.gun, M(-0.66, 0.2, 0)));                                            // 후방 탄약 적재문
+    g.push(part(box(0.1, 0.02, 0.1), C.steel, M(0.6, 0.33, 0)));                                           // 포신 고정대
+    g.push(part(cyl(0.007, 0.007, 0.2, 6), C.black, M(-0.2, 0.7, 0.15, 0, 0, H)));                        // 기관총
+    for (const z of [-0.18, 0.18]) g.push(part(box(0.2, 0.05, 0.04), C.olive2, M(-0.5, 0.62, z)));        // 포탑 적재함
     g.push(part(top([[0.2, -0.28], [-0.55, -0.28], [-0.62, -0.2], [-0.62, 0.2], [-0.55, 0.28], [0.2, 0.28], [0.3, 0.15], [0.3, -0.15]], 0.28, 0.015), body, M(-0.05, 0.3, 0), CAMO));
     g.push(part(cyl(0.035, 0.04, 1.1, 12), body, M(0.55, 0.78, 0, 0, 0, H - 0.55), CAMO));               // 155mm 포신 (앙각)
     g.push(part(box(0.1, 0.06, 0.08), C.olive2, M(1.02, 1.07, 0, 0, 0, 0.55)));                           // 포구 제퇴기
@@ -252,6 +266,18 @@ const builders = {
     // 헬기 갑판·격납고
     g.push(part(box(0.24, 0.1, 0.24), C.navy, M(-0.75, 0.24, 0)));
     g.push(part(cyl(0.09, 0.09, 0.004, 20), C.white, M(-0.93, 0.194, 0)));
+    // 세부: 난간·닻·구명정·회전 레이더·하푼·안테나·함번
+    for (const z of [-0.165, 0.165]) {
+      g.push(part(box(1.5, 0.028, 0.004), C.white, M(-0.1, 0.212, z)));
+      for (let x = -0.85; x < 0.65; x += 0.1) g.push(part(box(0.004, 0.028, 0.004), C.white, M(x, 0.212, z)));
+      g.push(part(cyl(0.028, 0.028, 0.1, 8), 0xe06a2a, M(-0.25, 0.3, z * 0.95, 0, 0, H)));                        // 구명정
+    }
+    g.push(part(box(0.04, 0.05, 0.012), C.dark, M(0.92, 0.12, 0.13))); g.push(part(box(0.04, 0.05, 0.012), C.dark, M(0.92, 0.12, -0.13)));  // 닻
+    g.push(part(box(0.2, 0.012, 0.04), C.dark, M(-0.05, 0.88, 0)));                                                // 회전 레이더
+    for (const x of [-0.12, 0.02]) g.push(part(cyl(0.003, 0.003, 0.22, 4), C.dark, M(x, 0.97, 0)));               // 안테나
+    for (const z of [-0.06, 0.06]) g.push(part(cyl(0.02, 0.02, 0.18, 8), C.navy2, M(-0.28, 0.43, z, 0, 0, H - 0.3)));  // 하푼
+    for (const z of [0.183, -0.183]) g.push(part(box(0.12, 0.05, 0.004), C.white, M(0.62, 0.12, z)));              // 함번
+    g.push(part(box(0.06, 0.1, 0.004), C.white, M(-1.0, 0.24, 0.12)));                                              // 헬기 갑판 경계선
     g.push(part(box(0.2, 0.1, 0.005), 0xffffff, M(-0.05, 0.93, 0.02), TINT));                              // 함기
     return mergeGeometries(g).scale(0.95, 0.95, 0.95);
   },
@@ -267,36 +293,62 @@ const builders = {
     return mergeGeometries(g);
   },
 
-  // 수도: 고층 빌딩 군과 도로
+  // 수도: 고층 빌딩 숲 + 랜드마크 타워 + 공원 + 강과 다리 + 방사형 도로
   city() {
     const g = [];
     const rnd = mulberry(7);
-    g.push(part(cyl(0.72, 0.76, 0.03, 24), C.road, M(0, 0.015, 0)));
-    for (let i = 0; i < 24; i++) {
-      const a = rnd() * PI * 2, r = 0.08 + rnd() * 0.6;
-      const h = 0.1 + rnd() * rnd() * 0.95 * (1 - r * 0.9);
-      const w = 0.07 + rnd() * 0.09, d = 0.07 + rnd() * 0.09;
+    g.push(part(cyl(0.82, 0.86, 0.03, 32), C.road, M(0, 0.015, 0)));
+    g.push(part(box(1.7, 0.012, 0.12), 0x3b6d93, M(0, 0.032, 0.22, 0, 0.25, 0)));                      // 강
+    for (const x of [-0.35, 0.05, 0.45]) g.push(part(box(0.05, 0.03, 0.22), C.concrete, M(x, 0.045, 0.22 - x * 0.25, 0, 0.25, 0)));  // 다리
+    for (let k = 0; k < 4; k++) g.push(part(box(1.6, 0.004, 0.03), 0x77736b, M(0, 0.034, 0, 0, k * PI / 4, 0)));     // 방사형 대로
+    g.push(part(cyl(0.16, 0.16, 0.012, 16), C.green, M(-0.35, 0.036, -0.35)));                          // 공원
+    for (let i = 0; i < 7; i++) { const a = rnd() * PI * 2, r = rnd() * 0.12; g.push(part(sph(0.03, 6, 5), 0x3f6a2e, M(-0.35 + Math.cos(a) * r, 0.07, -0.35 + Math.sin(a) * r))); }
+    const lots = [];
+    for (let i = 0; i < 46; i++) {
+      const a = rnd() * PI * 2, r = 0.1 + rnd() * 0.68;
       const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      const tall = h > 0.4;
-      g.push(part(box(w, h, d), tall ? C.glassB : rnd() > 0.5 ? C.concrete : 0x9aa3ad, M(x, h / 2 + 0.03, z)));
-      for (let k = 0.12; k < h - 0.03; k += 0.08) g.push(part(box(w * 1.01, 0.012, d * 1.01), C.window, M(x, k + 0.03, z)));
-      if (tall) g.push(part(cyl(0.004, 0.004, 0.08, 4), C.white, M(x, h + 0.07, z)));
+      if (Math.hypot(x + 0.35, z + 0.35) < 0.2 || Math.abs((z - 0.22) - (x * 0.25)) < 0.09) continue;  // 공원·강 피하기
+      lots.push([x, z, r]);
     }
+    for (const [x, z, r] of lots) {
+      const h = 0.1 + rnd() * rnd() * 1.1 * (1 - r * 0.85);
+      const w = 0.06 + rnd() * 0.08, d = 0.06 + rnd() * 0.08, tall = h > 0.45;
+      g.push(part(box(w, h, d), tall ? C.glassB : rnd() > 0.5 ? C.concrete : 0x9aa3ad, M(x, h / 2 + 0.03, z)));
+      for (let k = 0.1; k < h - 0.03; k += 0.06) g.push(part(box(w * 1.01, 0.01, d * 1.01), C.window, M(x, k + 0.03, z)));
+      if (tall) { g.push(part(box(w * 0.7, 0.04, d * 0.7), C.steel, M(x, h + 0.05, z))); g.push(part(cyl(0.004, 0.004, 0.1, 4), C.white, M(x, h + 0.12, z))); }
+      else g.push(part(box(w * 0.4, 0.02, d * 0.4), C.steel, M(x, h + 0.04, z)));                        // 옥상 설비
+    }
+    // 랜드마크 타워 (남산타워 풍)
+    g.push(part(cyl(0.12, 0.16, 0.08, 12), C.green, M(0.42, 0.07, -0.3)));
+    g.push(part(cyl(0.018, 0.03, 0.9, 10), C.white, M(0.42, 0.55, -0.3)));
+    g.push(part(cyl(0.06, 0.045, 0.07, 14), C.glassB, M(0.42, 0.88, -0.3)));
+    g.push(part(cyl(0.004, 0.012, 0.3, 6), 0xd04040, M(0.42, 1.08, -0.3)));
     g.push(part(cyl(0.012, 0.012, 1.1, 6), C.white, M(0, 0.55, 0)));                                       // 깃대
     return mergeGeometries(g);
   },
 
-  // 지방 도시 (작은 건물들)
+  // 지방 도시: 아파트·주택(지붕)·교회 첨탑·나무·도로
   town() {
     const g = [];
     const rnd = mulberry(11);
-    g.push(part(cyl(0.4, 0.42, 0.02, 16), C.road, M(0, 0.01, 0)));
-    for (let i = 0; i < 12; i++) {
-      const a = rnd() * PI * 2, r = 0.05 + rnd() * 0.32, h = 0.05 + rnd() * 0.28 * (1 - r);
-      const w = 0.05 + rnd() * 0.06, x = Math.cos(a) * r, z = Math.sin(a) * r;
-      g.push(part(box(w, h, w), rnd() > 0.4 ? C.concrete : 0xb07a5a, M(x, h / 2 + 0.02, z)));
-      g.push(part(box(w * 1.01, 0.01, w * 1.01), C.window, M(x, h * 0.65 + 0.02, z)));
+    g.push(part(cyl(0.42, 0.44, 0.02, 20), C.road, M(0, 0.01, 0)));
+    g.push(part(box(0.84, 0.004, 0.04), 0x77736b, M(0, 0.022, 0))); g.push(part(box(0.04, 0.004, 0.84), 0x77736b, M(0, 0.022, 0)));
+    for (let i = 0; i < 20; i++) {
+      const a = rnd() * PI * 2, r = 0.07 + rnd() * 0.32, x = Math.cos(a) * r, z = Math.sin(a) * r;
+      if (Math.abs(x) < 0.04 || Math.abs(z) < 0.04) continue;                                              // 도로 비우기
+      const w = 0.045 + rnd() * 0.05;
+      if (rnd() < 0.45) {                                                                                  // 아파트
+        const h = 0.1 + rnd() * 0.32 * (1 - r);
+        g.push(part(box(w, h, w * 1.4), C.concrete, M(x, h / 2 + 0.02, z)));
+        for (let k = 0.06; k < h - 0.02; k += 0.05) g.push(part(box(w * 1.02, 0.008, w * 1.42), C.window, M(x, k + 0.02, z)));
+      } else {                                                                                             // 주택 + 박공지붕
+        const h = 0.04 + rnd() * 0.04;
+        g.push(part(box(w, h, w), rnd() > 0.5 ? 0xe6dccb : 0xb07a5a, M(x, h / 2 + 0.02, z)));
+        g.push(part(cyl(0, w * 0.75, w * 0.5, 4), rnd() > 0.5 ? 0x8e3b2e : 0x3d4f6b, M(x, h + 0.02 + w * 0.25, z, 0, PI / 4, 0)));
+      }
     }
+    g.push(part(box(0.05, 0.1, 0.05), 0xe8e2d4, M(-0.2, 0.07, 0.18))); g.push(part(cyl(0, 0.03, 0.12, 4), 0x5a5f68, M(-0.2, 0.18, 0.18, 0, PI / 4, 0)));  // 교회 첨탑
+    for (let i = 0; i < 10; i++) { const a = rnd() * PI * 2, r = 0.33 + rnd() * 0.08; g.push(part(sph(0.025, 6, 5), 0x3f6a2e, M(Math.cos(a) * r, 0.05, Math.sin(a) * r))); g.push(part(cyl(0.005, 0.005, 0.03, 4), 0x5a3d25, M(Math.cos(a) * r, 0.025, Math.sin(a) * r))); }
     return mergeGeometries(g);
   },
 };
@@ -321,7 +373,26 @@ function running(g, S, { n = 6, r = 0.075, len = 1.2, gap = false, skirt = true,
     g.push(part(cyl(0.085, 0.085, 0.1, 12), C.gun, M(sx, 0.14, z, H)));
     if (gap) for (let i = 0; i < 3; i++) g.push(part(cyl(0.025, 0.025, 0.1, 8), C.dark, M(-0.3 + i * 0.3, 0.2, z, H))); // 상부 지지륜
     if (skirt) g.push(part(box(len, 0.12, 0.02), S.base, M(0, 0.2, z + sz * 0.075), CAMO));
+    // 궤도 링크 돌기 (아래·위)
+    for (let x = -len / 2 + 0.04; x < len / 2 - 0.02; x += 0.055) {
+      g.push(part(box(0.022, 0.012, 0.15), C.dark, M(x - 0.02, 0.0, z)));
+      if (!skirt) g.push(part(box(0.022, 0.01, 0.15), C.dark, M(x - 0.02, 0.232, z)));
+    }
+    const ix = sprocketFront ? -len / 2 + 0.07 : len / 2 - 0.07;                                          // 유도륜
+    g.push(part(cyl(0.07, 0.07, 0.1, 14), C.dark, M(ix, 0.13, z, H)));
+    g.push(part(cyl(0.03, 0.03, 0.105, 8), C.steel, M(ix, 0.13, z + sz * 0.002, H)));
+    for (let k = 0; k < 10; k++) { const a = k * PI / 5; g.push(part(box(0.022, 0.022, 0.1), C.dark, M(sx + Math.cos(a) * 0.092, 0.14 + Math.sin(a) * 0.092, z))); } // 구동륜 이빨
+    if (!gap) for (let i = 0; i < 3; i++) g.push(part(cyl(0.022, 0.022, 0.06, 8), C.dark, M(-0.3 + i * 0.3, 0.2, z - sz * 0.03, H))); // 지지륜
+    // 흙받이 위 공구 (삽·지렛대)·견인 케이블
+    g.push(part(box(0.22, 0.012, 0.02), 0x6b4a2a, M(-0.15, 0.262, z * 0.93)));
+    g.push(part(box(0.07, 0.01, 0.04), C.gun, M(-0.02, 0.262, z * 0.93)));
+    g.push(part(cyl(0.006, 0.006, 0.34, 5), C.steel, M(0.2, 0.26, z * 0.97, 0, 0, H)));
+    g.push(part(box(0.05, 0.03, 0.02), C.gun, M(len / 2 + 0.02, 0.18, z * 0.6)));                          // 견인 고리
+    g.push(part(box(0.012, 0.025, 0.03), 0xb02020, M(-len / 2 - 0.015, 0.26, z * 0.85)));                 // 후미등
+    g.push(part(box(0.012, 0.03, 0.03), C.white, M(len / 2 + 0.01, 0.28, z * 0.8)));                      // 전조등
   }
+  // 조종수 잠망경
+  for (const dz of [-0.06, 0, 0.06]) g.push(part(box(0.02, 0.02, 0.04), C.glass, M(len / 2 - 0.2, 0.31, dz)));
 }
 const idPlate = (g, x, y, z0, w = 0.12) => { g.push(part(box(w, 0.08, 0.005), 0xffffff, M(x, y, z0), TINT)); g.push(part(box(w, 0.08, 0.005), 0xffffff, M(x, y, -z0), TINT)); };
 const roofMark = (g, x, y, w = 0.28, d = 0.28) => g.push(part(box(w, 0.008, d), 0xffffff, M(x, y, 0), TINT));
@@ -484,7 +555,19 @@ function jetBody(o) {
   else if (o.twin) for (const z of [-0.05, 0.05]) g.push(part(cyl(0.048, 0.043, 0.1, 14), C.gun, M(-0.78, -0.01, z, 0, 0, H)));
   else g.push(part(cyl(0.06, 0.05, 0.12, 14), C.gun, M(-0.78, -0.01, 0, 0, 0, H)));
   if (o.stinger) g.push(part(cyl(0.02, 0.035, 0.2, 10), skin, M(-0.86, 0.0, 0, 0, 0, H)));
-  for (const z of [-0.4, 0.4, -0.25, 0.25]) g.push(part(cyl(0.014, 0.014, 0.28, 8), C.white, M(-0.12, -0.05, z, 0, 0, H)));
+  for (const z of [-0.4, 0.4, -0.25, 0.25]) {
+    g.push(part(cyl(0.014, 0.014, 0.28, 8), C.white, M(-0.12, -0.05, z, 0, 0, H)));
+    g.push(part(new THREE.ConeGeometry(0.014, 0.05, 8), C.white, M(0.045, -0.05, z, 0, 0, -H)));
+    g.push(part(box(0.12, 0.025, 0.01), C.jet2, M(-0.1, -0.03, z)));                                       // 파일런
+    for (const r of [0, 1, 2, 3]) g.push(part(box(0.04, 0.03, 0.003), C.white, M(-0.24, -0.05, z, r * H / 2)));  // 미사일 꼬리날개
+  }
+  g.push(part(cyl(0.004, 0.006, 0.14, 5), C.dark, M(0.9 * L, 0, 0, 0, 0, H)));                              // 피토관
+  g.push(part(box(0.005, 0.03, 0.1), C.gun, M(0.36 * L, 0.1 * o.fat, 0)));                                  // 캐노피 프레임
+  g.push(part(box(0.22, 0.005, 0.006), C.gun, M(0.4 * L, 0.125 * o.fat, 0)));
+  g.push(part(box(0.1, 0.02, 0.005), C.black, M(0.1, 0.1 * o.fat, 0)));                                     // 등 안테나
+  for (const z of [-0.12, 0.12]) g.push(part(box(0.06, 0.004, 0.02), C.dark, M(0.55 * L, 0.02, z * o.fat)));  // 편대등
+  g.push(part(box(0.2, 0.004, 0.03), C.dark, M(-0.1, -0.075, 0)));                                         // 착륙장치 도어선
+  g.push(part(cyl(0.03, 0.03, 0.005, 12), 0xff8a3a, M(-0.835, -0.01, 0, 0, 0, H)));                        // 애프터버너 불빛
   g.push(part(box(0.12, 0.004, 0.12), 0xffffff, M(-0.2, 0.006, 0.45), TINT)); g.push(part(box(0.12, 0.004, 0.12), 0xffffff, M(-0.2, 0.006, -0.45), TINT));
   return mergeGeometries(g).scale(1.25, 1.25, 1.25);
 }
@@ -518,6 +601,18 @@ function shipBody(o) {
   if (o.tubes) for (const z of [-0.2, 0.2]) for (let i = 0; i < 4; i++) g.push(part(cyl(0.035, 0.035, 0.32, 10), C.navy2, M(0.3 - i * 0.02, 0.28, z * (1 + i * 0.02), 0, 0, H + 0.3 * Math.sign(z) * 0 - 0.25)));
   g.push(part(box(0.24, 0.1, 0.24), C.navy, M(-0.75, 0.24, 0)));
   g.push(part(cyl(0.09, 0.09, 0.004, 20), C.white, M(-0.93, 0.194, 0)));
+  // 세부: 난간·닻·구명정·회전 레이더·하푼·안테나·함번
+  for (const z of [-0.165, 0.165]) {
+    g.push(part(box(1.5, 0.028, 0.004), C.white, M(-0.1, 0.212, z)));
+    for (let x = -0.85; x < 0.65; x += 0.1) g.push(part(box(0.004, 0.028, 0.004), C.white, M(x, 0.212, z)));
+    g.push(part(cyl(0.028, 0.028, 0.1, 8), 0xe06a2a, M(-0.25, 0.3, z * 0.95, 0, 0, H)));                        // 구명정
+  }
+  g.push(part(box(0.04, 0.05, 0.012), C.dark, M(0.92, 0.12, 0.13))); g.push(part(box(0.04, 0.05, 0.012), C.dark, M(0.92, 0.12, -0.13)));  // 닻
+  g.push(part(box(0.2, 0.012, 0.04), C.dark, M(-0.05, 0.88, 0)));                                                // 회전 레이더
+  for (const x of [-0.12, 0.02]) g.push(part(cyl(0.003, 0.003, 0.22, 4), C.dark, M(x, 0.97, 0)));               // 안테나
+  for (const z of [-0.06, 0.06]) g.push(part(cyl(0.02, 0.02, 0.18, 8), C.navy2, M(-0.28, 0.43, z, 0, 0, H - 0.3)));  // 하푼
+  for (const z of [0.183, -0.183]) g.push(part(box(0.12, 0.05, 0.004), C.white, M(0.62, 0.12, z)));              // 함번
+  g.push(part(box(0.06, 0.1, 0.004), C.white, M(-1.0, 0.24, 0.12)));                                              // 헬기 갑판 경계선
   g.push(part(box(0.2, 0.1, 0.005), 0xffffff, M(-0.05, o.mast === 'sphere' ? 1.12 : 0.93, 0.02), TINT));
   return mergeGeometries(g).scale(0.95 * L, 0.95 * Math.max(0.9, L), 0.95 * L);
 }
@@ -648,7 +743,7 @@ const LOD = {
       part(sph(0.095, 6, 3, 0, PI * 2, 0, H), S.base, M(0, 0.82, 0)),
       part(box(0.1, 0.02, 0.18), 0xffffff, M(-0.13, 0.74, 0), TINT),
       part(box(0.42, 0.04, 0.04), C.gun, M(0.2, 0.58, 0.05)),
-    ]).scale(1.25, 1.25, 1.25);
+    ]).scale(1.0, 1.0, 1.0);
   },
   arty(S) {
     return mergeGeometries([

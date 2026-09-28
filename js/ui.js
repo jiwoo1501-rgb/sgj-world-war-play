@@ -1,6 +1,6 @@
 // 화면 UI: 시작 화면, 상단 정보, 생산, 선택 국가·공격, 뉴스, 밸런스 편집기
-import { UNITS, UNIT_KEYS, DEFAULT_BAL, flagOf, josa } from './game.js?v=202609281745';
-import { leaderOf, leaderText, leaderPhoto } from './leaders.js?v=202609281745';
+import { UNITS, UNIT_KEYS, DEFAULT_BAL, flagOf, josa, WIN_SHARE } from './game.js?v=202609282049';
+import { leaderOf, leaderText, leaderPhoto } from './leaders.js?v=202609282049';
 
 const $ = (s, r = document) => r.querySelector(s);
 const h = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
@@ -167,7 +167,7 @@ export class UI {
     $('#cap').textContent = fmt(g.cap(me));
     $('#terr').textContent = g.owned(me.id).length;
     $('#share').textContent = (g.gdpShare(me.id) * 100).toFixed(1) + '%';
-    $('#share-bar').style.width = Math.min(100, (g.gdpShare(me.id) / 0.9) * 100) + '%';
+    $('#share-bar').style.width = Math.min(100, (g.gdpShare(me.id) / WIN_SHARE) * 100) + '%';
     const d = new Date(2026, 0, 1); d.setDate(d.getDate() + Math.floor(g.day));
     $('#date').textContent = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
     $('#alive').textContent = [...g.nations.values()].filter((n) => n.alive).length;
@@ -278,7 +278,7 @@ export class UI {
   over({ win, stats, day }) {
     const el = $('#over'); el.hidden = false;
     $('#over-title').textContent = win ? '세계 정복 성공' : '패배';
-    $('#over-sub').textContent = win ? `${josa(this.me.name, '이가')} 세계 GDP의 90%를 장악했습니다.` : `${josa(this.me.name, '이가')} 멸망했습니다.`;
+    $('#over-sub').textContent = win ? `${josa(this.me.name, '이가')} 세계 GDP의 60%를 장악했습니다.` : `${josa(this.me.name, '이가')} 멸망했습니다.`;
     const items = [['경과 일수', Math.floor(day)], ['지방 점령', stats.captured], ['지방 상실', stats.lost], ['출정 횟수', stats.battles], ['방어 성공', stats.repelled], ['멸망시킨 나라', stats.eliminated], ['생산한 병력', stats.built], ['최대 장악률', (stats.peak * 100).toFixed(1) + '%'], ['남은 지방', this.game.owned(this.me.id).length]];
     $('#over-stats').innerHTML = items.map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
     $('#over-btn').onclick = () => this.api.newGame();

@@ -1,21 +1,21 @@
 import * as THREE from 'three';
-import { leaderText, leaderPhoto } from './leaders.js?v=202609281745';
-import { playFinale } from './finale.js?v=202609281745';
+import { leaderText, leaderPhoto } from './leaders.js?v=202609282049';
+import { playFinale } from './finale.js?v=202609282049';
 import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Game, UNITS } from './game.js?v=202609281745';
-import { WorldMap, LAND_H } from './map.js?v=202609281745';
-import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js?v=202609281745';
-import { FX, setParticleBudget } from './fx.js?v=202609281745';
-import { makeArrow, computeFront, FrontLine } from './warfx.js?v=202609281745';
-import { WarMap, precomputeBorders } from './warmap.js?v=202609281745';
-import { Minimap } from './minimap.js?v=202609281745';
-import { Garrisons } from './garrison.js?v=202609281745';
-import { UI } from './ui.js?v=202609281745';
-import { Sound } from './audio.js?v=202609281745';
+import { Game, UNITS } from './game.js?v=202609282049';
+import { WorldMap, LAND_H } from './map.js?v=202609282049';
+import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js?v=202609282049';
+import { FX, setParticleBudget } from './fx.js?v=202609282049';
+import { makeArrow, computeFront, FrontLine } from './warfx.js?v=202609282049';
+import { WarMap, precomputeBorders } from './warmap.js?v=202609282049';
+import { Minimap } from './minimap.js?v=202609282049';
+import { Garrisons } from './garrison.js?v=202609282049';
+import { UI } from './ui.js?v=202609282049';
+import { Sound } from './audio.js?v=202609282049';
 
-const U = 0.42; // 유닛 크기 배율(지도 단위)
-const world = await fetch('data/world.json?v=202609281745').then((r) => r.json());
+const U = 0.2; // 유닛 크기 배율(지도 단위) — 도시 모형보다 작게
+const world = await fetch('data/world.json?v=202609282049').then((r) => r.json());
 
 // ---------- 렌더러·장면 ----------
 // 폰·태블릿 판별: 화면을 손가락으로 조작하는 기기
@@ -133,7 +133,7 @@ const occFlags = new Map();    // 점령지에 꽂힌 국기
 
 const landColor = (n) => new THREE.Color(n.color).lerp(new THREE.Color(0x8c8a70), 0.22);
 const tY = (idx) => map.heightOf(idx);
-const citySize = (t) => THREE.MathUtils.clamp(Math.sqrt(world.countries[t.country].area) / 900, 0.22, 0.9);
+const citySize = (t) => THREE.MathUtils.clamp(Math.sqrt(world.countries[t.country].area) / 500, 0.85, 1.6);
 
 // ---------- 저장 · 설정 ----------
 const SAVE_KEY = 'sgj-save-v2', SET_KEY = 'sgj-settings-v2'; // v2: 폰 기본 품질을 '낮음'으로 바꾸면서 이전 저장값 무시
@@ -237,7 +237,7 @@ function startGame(opts, saved) {
   const c = game.territories[me.capital];
   setView(c.cx, c.cy, 32);
   ui.log(saved ? { msg: `💾 저장된 게임을 불러왔습니다 (${me.flag} ${me.name})`, kind: 'mine', day: game.day }
-    : { msg: `${me.flag} ${me.name} 지도자님, 세계 GDP 90%를 장악하면 승리합니다. 40일간 평화가 유지됩니다.`, kind: 'mine', day: 0 });
+    : { msg: `${me.flag} ${me.name} 지도자님, 세계 GDP 60%를 장악하면 승리합니다. 40일간 평화가 유지됩니다.`, kind: 'mine', day: 0 });
 }
 let speedBeforePause = 1;
 
