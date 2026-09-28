@@ -1,20 +1,20 @@
 import * as THREE from 'three';
-import { leaderText, leaderPhoto } from './leaders.js';
+import { leaderText, leaderPhoto } from './leaders.js?v=202609281658';
 import { MapControls } from 'three/addons/controls/MapControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Game, UNITS } from './game.js';
-import { WorldMap, LAND_H } from './map.js';
-import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js';
-import { FX, setParticleBudget } from './fx.js';
-import { makeArrow, computeFront, FrontLine } from './warfx.js';
-import { WarMap, precomputeBorders } from './warmap.js';
-import { Minimap } from './minimap.js';
-import { Garrisons } from './garrison.js';
-import { UI } from './ui.js';
-import { Sound } from './audio.js';
+import { Game, UNITS } from './game.js?v=202609281658';
+import { WorldMap, LAND_H } from './map.js?v=202609281658';
+import { makeUnit, makeFlag, flagTime, setNationInfo, prewarm, makeInstanced } from './models.js?v=202609281658';
+import { FX, setParticleBudget } from './fx.js?v=202609281658';
+import { makeArrow, computeFront, FrontLine } from './warfx.js?v=202609281658';
+import { WarMap, precomputeBorders } from './warmap.js?v=202609281658';
+import { Minimap } from './minimap.js?v=202609281658';
+import { Garrisons } from './garrison.js?v=202609281658';
+import { UI } from './ui.js?v=202609281658';
+import { Sound } from './audio.js?v=202609281658';
 
 const U = 0.42; // 유닛 크기 배율(지도 단위)
-const world = await fetch('data/world.json?v=20260928b').then((r) => r.json());
+const world = await fetch('data/world.json?v=202609281658').then((r) => r.json());
 
 // ---------- 렌더러·장면 ----------
 // 폰·태블릿 판별: 화면을 손가락으로 조작하는 기기
