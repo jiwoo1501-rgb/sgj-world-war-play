@@ -212,8 +212,8 @@ export class WorldMap {
       (country ? cpts : ppts).push(x1, country ? y : y - 0.001, z1, x2, country ? y : y - 0.001, z2);
     }
     const mk = (pts, color, opacity) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity })); };
-    this.provBorders = mk(ppts, 0x2a2f36, 0.4);
-    this.borders = mk(cpts, 0x14171b, 0.85);
+    this.provBorders = mk(ppts, 0xf4ead0, 0.7);
+    this.borders = mk(cpts, 0x0b0d10, 1);
     this.group.add(this.provBorders, this.borders);
   }
 
@@ -246,8 +246,9 @@ export class WorldMap {
   fadeOcc(pi) { const s = this.slot(pi, false); if (s >= 0) this.fade[s] = true; } // 격퇴되면 서서히 되돌림
 
   writeCol(i, c) {
-    const o = i * 4, h = c.getHex(THREE.SRGBColorSpace);
-    this.colData[o] = (h >> 16) & 255; this.colData[o + 1] = (h >> 8) & 255; this.colData[o + 2] = h & 255;
+    // 지방마다 명도를 조금씩 달리해 같은 나라 안에서도 행정구역이 구분되게
+    const o = i * 4, h = c.getHex(THREE.SRGBColorSpace), f = 0.86 + ((i * 2654435761) >>> 0) % 1000 / 1000 * 0.2;
+    this.colData[o] = Math.min(255, ((h >> 16) & 255) * f); this.colData[o + 1] = Math.min(255, ((h >> 8) & 255) * f); this.colData[o + 2] = Math.min(255, (h & 255) * f);
     this.colDirty = true;
   }
   setColor(pi, color, tween = false) {

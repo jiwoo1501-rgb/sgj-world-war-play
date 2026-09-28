@@ -13,7 +13,7 @@ import { UI } from './ui.js';
 import { Sound } from './audio.js';
 
 const U = 0.42; // 유닛 크기 배율(지도 단위)
-const world = await fetch('data/world.json').then((r) => r.json());
+const world = await fetch('data/world.json?v=20260928b').then((r) => r.json());
 
 // ---------- 렌더러·장면 ----------
 // 폰·태블릿 판별: 화면을 손가락으로 조작하는 기기

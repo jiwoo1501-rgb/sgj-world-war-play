@@ -13,7 +13,7 @@
 <meta name="theme-color" content="#061019">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/style.css?v=20260928b">
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/addons/" } }
 </script>
@@ -27,7 +27,7 @@
     <div class="brand">
       <small>WORLD CONQUEST · 3D GRAND STRATEGY</small>
       <h1>세계정복</h1>
-      <p class="lead">실제 국경과 1,400여 개 지방 위에서 벌이는 실시간 국가 전쟁</p>
+      <p class="lead">실제 국경과 3,300여 개 행정구역 위에서 벌이는 실시간 국가 전쟁</p>
     </div>
     <nav class="menu-list">
       <button id="m-continue" class="menu-item"><b>이어하기</b><small id="m-save-info">저장된 게임이 없습니다</small></button>
@@ -233,7 +233,7 @@
   })();
 </script>
 <script type="module">
-  import('./js/main.js').then(() => document.getElementById('loading').remove())
+  import('./js/main.js?v=20260928b').then(() => document.getElementById('loading').remove())
     .catch((e) => { document.getElementById('loading').textContent = '불러오기 실패: ' + e.message; console.error(e); });
 </script>
 </body>
