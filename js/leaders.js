@@ -55,5 +55,8 @@ export const LEADERS = {
 };
 export const leaderOf = (id) => LEADERS[id] || null;
 // 지도자 사진이 있으면 동그란 얼굴 사진, 없으면 빈 문자열
-export const leaderPhoto = (id, cls = 'ld-ph') => { const l = LEADERS[id]; return l?.[2] ? `<img class="${cls}" src="${l[2]}" alt="${l[1]}">` : ''; };
+// 위키미디어 공용 사진 (출처: img/leaders/CREDITS.md)
+const PHOTOS = new Set('AE AL AM AO AR AT AU AZ BD BE BF BH BI BJ BN BO BR BT BW BY BZ CA CD CF CG CH CI CL CM CN CR CU CY CZ DE DJ DK DO DZ EC EE EG ER ES ET FI FJ FR GA GB GE GH GM GN GR GT GY HN HR HU ID IE IL IN IR IS IT JM JO JP KE KG KH KP KW KZ LA LB LI LK LR LS LT LU LV MA MC MD ME MG MK ML MM MN MR MT MW MX MY MZ NA NE NG NI NL NO NZ OM PA PG PH PK PL PS PT PY QA RO RS RU RW SA SD SE SG SK SL SN SO SR SS SV SY SZ TD TG TH TJ TL TM TN TR TT TW TZ UA UG US UY UZ VA VE VN XK YE ZA ZM ZW'.split(' '));
+const photoOf = (id) => LEADERS[id]?.[2] || (PHOTOS.has(id) ? `img/leaders/${id}.jpg` : null);
+export const leaderPhoto = (id, cls = 'ld-ph') => { const l = LEADERS[id], src = l && photoOf(id); return src ? `<img class="${cls}" src="${src}" alt="${l[1]}" loading="lazy" decoding="async">` : ''; };
 export const leaderText = (id) => { const l = LEADERS[id]; return l ? `${l[0]} ${l[1]}` : ''; };
